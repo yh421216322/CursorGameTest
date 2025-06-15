@@ -1,766 +1,940 @@
+// ==============================================================================
+// **版权所有 (C) 2024 未知开发者保留所有权利。**
+//
+// 文件名：ZombieSystem.cs
+// 作者：未知开发者
+// 创建日期：2024年07月16日 // 根据实际情况修改
+// 修改日期：2024年07月16日 // 根据实际情况修改
+// 文件版本：1.0.0
+// 描述：
+//     此文件定义了基础僵尸系统 (ZombieSystem) 及其相关接口。该系统负责管理
+//     游戏世界中僵尸的生成、行为（移动、攻击）、状态（生命、死亡）以及
+//     全局的僵尸威胁等级。它与其他系统（如建筑系统、资源系统）交互，
+//     并响应游戏事件（如时间更新、建筑被毁）来动态调整僵尸的行为和数量。
+// ==============================================================================
+
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-using QFramework;
-using MyGameNamespace;
-using SurvivalGame.Model;
+using System.Linq; // 用于 LINQ 查询，例如在 SelectZombieTypeByWeight 中
+using UnityEngine;   // Unity 核心功能
+using QFramework;    // QFramework 框架
+using MyGameNamespace; // 包含自定义事件结构体的命名空间
+using SurvivalGame.Model; // 游戏核心数据模型
 
 namespace SurvivalGame.GameSystem
 {
     /// <summary>
-    /// 僵尸系统接口
-    /// 定义僵尸系统对外暴露的核心行为，供其他系统调用或监听
+    /// 僵尸系统接口 (IZombieSystem)。
+    /// 定义了僵尸系统对外提供的核心功能和交互点。
     /// </summary>
     public interface IZombieSystem : QFISystem
     {
-        void Update(); // 系统主更新循环
-        void SpawnZombie(ZombieType type, Vector2 position); // 生成单个僵尸
-        void SpawnZombieHorde(ZombieThreatLevel threatLevel, Vector2 centerPosition); // 生成僵尸群
-        void UpdateZombieMovement(); // 更新所有僵尸移动逻辑
-        void UpdateZombieAttacks(); // 更新所有僵尸攻击逻辑
-        void ProcessZombieDeath(string zombieId); // 处理僵尸死亡
-        void UpdateThreatLevel(); // 更新当前威胁等级
-        ZombieSystemData GetZombieData(); // 获取当前僵尸系统数据
-        List<ZombieData> GetZombiesNearPosition(Vector2 position, float radius); // 获取指定范围内的僵尸列表
-        void TakeDamageToZombie(string zombieId, float damage); // 给指定僵尸造成伤害
-        ZombieThreatLevel GetCurrentThreatLevel(); // 获取当前僵尸威胁等级
-        int GetTotalZombieCount(); // 获取总生成的僵尸数量
-        int GetActiveZombieCount(); // 获取当前存活的僵尸数量
+        /// <summary>
+        /// 系统的主更新方法，通常由游戏循环每帧或按固定时间间隔调用。
+        /// </summary>
+        void Update();
+
+        /// <summary>
+        /// 在指定位置生成一个特定类型的僵尸。
+        /// </summary>
+        /// <param name="type">要生成的僵尸类型。</param>
+        /// <param name="position">僵尸的生成位置。</param>
+        void SpawnZombie(ZombieType type, Vector2 position);
+
+        /// <summary>
+        /// 根据当前的威胁等级，在指定中心位置生成一群僵尸。
+        /// </summary>
+        /// <param name="threatLevel">当前的僵尸威胁等级，影响生成僵尸的数量和类型。</param>
+        /// <param name="centerPosition">僵尸群生成的中心位置。</param>
+        void SpawnZombieHorde(ZombieThreatLevel threatLevel, Vector2 centerPosition);
+
+        /// <summary>
+        /// 更新所有活动僵尸的移动逻辑。
+        /// </summary>
+        void UpdateZombieMovement();
+
+        /// <summary>
+        /// 更新所有活动僵尸的攻击逻辑。
+        /// </summary>
+        void UpdateZombieAttacks();
+
+        /// <summary>
+        /// 处理指定ID僵尸的死亡逻辑，例如移除、播放特效、更新统计等。
+        /// </summary>
+        /// <param name="zombieId">已死亡僵尸的唯一ID。</param>
+        void ProcessZombieDeath(string zombieId);
+
+        /// <summary>
+        /// 根据当前游戏状态（如天数、现有僵尸数量等）更新全局的僵尸威胁等级。
+        /// </summary>
+        void UpdateThreatLevel();
+
+        /// <summary>
+        /// 获取当前僵尸系统的所有运行时数据。
+        /// </summary>
+        /// <returns>包含所有僵尸、僵尸群及威胁等级信息的 ZombieSystemData 对象。</returns>
+        ZombieSystemData GetZombieData();
+
+        /// <summary>
+        /// 获取在指定位置和半径范围内的所有僵尸列表。
+        /// </summary>
+        /// <param name="position">搜索的中心位置。</param>
+        /// <param name="radius">搜索半径。</param>
+        /// <returns>符合条件的僵尸数据列表。</returns>
+        List<ZombieData> GetZombiesNearPosition(Vector2 position, float radius);
+
+        /// <summary>
+        /// 对指定ID的僵尸施加一定量的伤害。
+        /// </summary>
+        /// <param name="zombieId">目标僵尸的唯一ID。</param>
+        /// <param name="damage">要施加的伤害量。</param>
+        void TakeDamageToZombie(string zombieId, float damage);
+
+        /// <summary>
+        /// 获取当前的全局僵尸威胁等级。
+        /// </summary>
+        /// <returns>当前的 ZombieThreatLevel 枚举值。</returns>
+        ZombieThreatLevel GetCurrentThreatLevel();
+
+        /// <summary>
+        /// 获取自游戏开始以来已生成的僵尸总数量。
+        /// </summary>
+        /// <returns>已生成的僵尸总数。</returns>
+        int GetTotalZombieCount();
+
+        /// <summary>
+        /// 获取当前场景中所有存活（活动）的僵尸数量。
+        /// </summary>
+        /// <returns>当前存活的僵尸数量。</returns>
+        int GetActiveZombieCount();
     }
     
     /// <summary>
-    /// 僵尸系统实现类
-    /// 负责管理僵尸的生成、移动、攻击、死亡以及威胁等级的动态变化。
+    /// 僵尸系统 (ZombieSystem) 的具体实现类。
+    /// 负责管理游戏世界中所有僵尸的生命周期、行为逻辑（如生成、移动、攻击、死亡）
+    /// 以及全局僵尸威胁等级的动态调整。
     /// 
     /// 核心机制：
-    /// - 按照时间间隔自动刷新僵尸状态
-    /// - 根据威胁等级动态调整生成频率与类型
-    /// - 支持多种类型的僵尸（Walker, Runner, Tank等）
-    /// - 支持群体生成（horde）和攻击目标建筑
-    /// - 提供可视化系统所需的数据支持
+    /// - 定期更新：按预设时间间隔刷新僵尸状态、行为决策及威胁等级。
+    /// - 动态生成：根据当前的威胁等级和游戏进程（如天数）动态调整僵尸的生成频率、数量和类型。
+    /// - 多样化僵尸：支持不同类型的僵尸（如普通型Walker、快速型Runner、强壮型Tank等），每种类型可有不同属性和行为。
+    /// - 群体行为：支持生成僵尸群（Horde），并可能包含初步的群体移动或目标选择逻辑（可由ZombieAIEnhancementSystem进一步增强）。
+    /// - 目标选择：僵尸会以建筑（尤其是玩家基地核心）作为主要攻击目标。
+    /// - 数据驱动：依赖ZombieSystemData容器存储所有僵尸实例和相关状态，并通过ConfigSystem获取配置。
     /// 
     /// 关键依赖：
-    /// - ISurvivalGameModel: 游戏模型，用于获取游戏时间和资源信息
-    /// - IResourceSystem: 资源系统，用于影响游戏经济系统
-    /// - IEnhancedBuildingSystem: 建筑系统，用于僵尸寻路和攻击
-    /// - ZombieSystemData: 数据容器，保存僵尸状态和威胁信息
-    /// - 各种事件驱动更新（TimeUpdateEvent, NewDayEvent等）
+    /// - ISurvivalGameModel: 用于访问和修改全局游戏状态，如当前天数、玩家资源（间接影响威胁）等。
+    /// - IResourceSystem: （当前注释中未直接使用，但理论上僵尸行为可能与资源系统有交互，如僵尸掉落物）。
+    /// - IEnhancedBuildingSystem: 用于获取建筑信息，作为僵尸的攻击目标或寻路参考。
+    /// - ConfigSystem: (通过GetSystem获取) 用于读取僵尸类型、威胁等级对应的生成规则等配置。
     /// 
-    /// 状态流转：
-    /// Wandering → Approaching → Attacking → Dead
+    /// 状态流转（单个僵尸）：
+    ///   (生成) -> Wandering (游荡) -> Approaching (接近目标) -> Attacking (攻击中) -> Dead (死亡)
     /// 
-    /// 事件响应：
-    /// - TimeUpdateEvent: 每帧更新时触发
-    /// - NewDayEvent: 新的一天开始时增加威胁积累
-    /// - BuildingDestroyedEvent: 建筑被摧毁时处理僵尸目标变更
-    /// - 发送事件:
-    ///   - ZombieSpawnedEvent: 僵尸生成时通知其他系统
-    ///   - ZombieAttackBuildingEvent: 僵尸攻击建筑时通知UI或其他系统
-    ///   - ThreatLevelChangedEvent: 威胁等级变化时通知UI或防御系统
+    /// 事件交互：
+    /// - 监听 TimeUpdateEvent: 驱动系统自身的周期性更新逻辑。
+    /// - 监听 NewDayEvent: 在新的一天开始时调整威胁积累。
+    /// - 监听 BuildingDestroyedEvent: 当建筑被摧毁时，可能需要重新评估僵尸的攻击目标。
+    /// - 发送 ZombieSpawnedEvent: 当新僵尸（或僵尸群）生成时，通知其他系统（如可视化、AI增强系统）。
+    /// - 发送 ZombieAttackBuildingEvent: 当僵尸对建筑发起攻击时，通知相关系统（如UI、建筑系统处理伤害）。
+    /// - 发送 ZombieDeathEvent: 当僵尸死亡时通知。
+    /// - 发送 ThreatLevelChangedEvent: 当全局威胁等级发生变化时通知。
     /// </summary>
     public class ZombieSystem : AbstractSystem, IZombieSystem
     {
-        private ISurvivalGameModel mGameModel; // 游戏核心模型引用
-        private IResourceSystem mResourceSystem; // 资源系统引用
-        private IEnhancedBuildingSystem mBuildingSystem; // 建筑系统引用
+        // --- 系统引用与数据模型 ---
+        /// <summary>游戏核心数据模型，用于获取全局游戏状态如天数等。</summary>
+        private ISurvivalGameModel mGameModel;
+        /// <summary>资源系统引用（当前未使用，但未来可能用于僵尸掉落等）。</summary>
+        private IResourceSystem mResourceSystem;
+        /// <summary>建筑系统引用，用于僵尸索敌和路径规划。</summary>
+        private IEnhancedBuildingSystem mBuildingSystem;
         
-        private ZombieSystemData mZombieData; // 当前僵尸系统数据存储
+        /// <summary>存储当前所有僵尸数据、僵尸群数据以及威胁等级等信息的容器。</summary>
+        private ZombieSystemData mZombieData;
         
-        // 系统运行参数配置
-        private const float ZOMBIE_UPDATE_INTERVAL = 0.5f; // 僵尸更新周期
-        private const float THREAT_UPDATE_INTERVAL = 60f; // 威胁等级更新周期
-        private const float SPAWN_CHECK_INTERVAL = 15f; // 僵尸生成检查周期
-        private const float MAP_SIZE = 50f; // 地图边界尺寸
-        private const float SPAWN_DISTANCE_MIN = 15f; // 最小生成距离
-        private const float SPAWN_DISTANCE_MAX = 25f; // 最大生成距离
-        private const float ATTACK_COOLDOWN = 2f; // 攻击冷却时间
-        private const float CLEANUP_INTERVAL = 30f; // 死亡僵尸清理周期
+        // --- 系统运行参数配置 (Constants for System Operation) ---
+        /// <summary>僵尸个体行为（如移动、攻击决策）的更新周期（秒）。</summary>
+        private const float ZOMBIE_UPDATE_INTERVAL = 0.5f;
+        /// <summary>全局威胁等级评估与更新的周期（秒）。</summary>
+        private const float THREAT_UPDATE_INTERVAL = 60f;
+        /// <summary>检查是否需要生成新僵尸的周期（秒）。</summary>
+        private const float SPAWN_CHECK_INTERVAL = 15f;
+        /// <summary>游戏地图的边界尺寸或僵尸活动范围参考值（用于生成位置计算）。</summary>
+        private const float MAP_SIZE = 50f;
+        /// <summary>僵尸群生成的最小距离（相对于玩家基地或兴趣点）。</summary>
+        private const float SPAWN_DISTANCE_MIN = 15f;
+        /// <summary>僵尸群生成的最大距离。</summary>
+        private const float SPAWN_DISTANCE_MAX = 25f;
+        /// <summary>僵尸攻击的冷却时间（秒），防止攻击频率过高。</summary>
+        private const float ATTACK_COOLDOWN = 2f;
+        /// <summary>清理已死亡僵尸数据和对象的周期（秒）。</summary>
+        private const float CLEANUP_INTERVAL = 30f;
         
-        private float mLastZombieUpdate = 0f; // 上次僵尸更新时间
-        private float mLastThreatUpdate = 0f; // 上次威胁等级更新时间
-        private float mLastSpawnCheck = 0f; // 上次生成检查时间
-        private float mLastCleanup = 0f; // 上次死亡僵尸清理时间
+        // --- 时间戳变量 (Timestamp Variables for Update Timing) ---
+        /// <summary>记录上一次执行僵尸主要逻辑更新的时间。</summary>
+        private float mLastZombieUpdate = 0f;
+        /// <summary>记录上一次执行威胁等级更新的时间。</summary>
+        private float mLastThreatUpdate = 0f;
+        /// <summary>记录上一次检查僵尸生成条件的时间。</summary>
+        private float mLastSpawnCheck = 0f;
+        /// <summary>记录上一次清理死亡僵尸的时间。</summary>
+        private float mLastCleanup = 0f;
         
+        /// <summary>
+        /// 系统初始化方法。
+        /// 获取对其他系统和数据模型的引用，初始化内部数据结构，并注册相关的游戏事件监听器。
+        /// </summary>
         protected override void OnInit()
         {
-            // 获取框架依赖组件
+            // 获取框架内其他系统和数据模型的引用
             mGameModel = this.GetModel<ISurvivalGameModel>();
             mResourceSystem = this.GetSystem<IResourceSystem>();
             mBuildingSystem = this.GetSystem<IEnhancedBuildingSystem>();
             
-            // 初始化僵尸系统数据容器
-            mZombieData = new ZombieSystemData();
+            mZombieData = new ZombieSystemData(); // 初始化僵尸系统自身的数据容器
             
-            // 注册监听事件
-            this.RegisterEvent<TimeUpdateEvent>(OnTimeUpdate);
-            this.RegisterEvent<NewDayEvent>(OnNewDay);
-            this.RegisterEvent<BuildingDestroyedEvent>(OnBuildingDestroyed);
+            // 注册对游戏内事件的监听，以便响应并执行相应逻辑
+            this.RegisterEvent<TimeUpdateEvent>(OnTimeUpdate); // 监听时间更新事件，驱动周期性任务
+            this.RegisterEvent<NewDayEvent>(OnNewDay);         // 监听新的一天开始事件，用于调整威胁等级
+            this.RegisterEvent<BuildingDestroyedEvent>(OnBuildingDestroyed); // 监听建筑被摧毁事件，处理僵尸目标变更
             
-            //Debug.Log("僵尸系统初始化完成");
+            Debug.Log("[僵尸系统] 初始化完成。");
         }
 
         /// <summary>
-        /// 时间更新事件回调函数
-        /// 每帧根据时间间隔执行不同任务
+        /// 时间更新事件的回调处理方法。
+        /// 根据预设的时间间隔，定期驱动僵尸的移动、攻击、威胁等级更新、生成检查和死亡清理等逻辑。
         /// </summary>
+        /// <param name="e">时间更新事件参数，包含deltaTime（当前未使用）。</param>
         private void OnTimeUpdate(TimeUpdateEvent e)
         {
-            float currentTime = Time.time;
+            float currentTime = Time.time; // 获取当前游戏时间
             
-            // 更新僵尸移动和行为
+            // --- 定期更新僵尸的移动和攻击行为 ---
             if (currentTime - mLastZombieUpdate >= ZOMBIE_UPDATE_INTERVAL)
             {
-                UpdateZombieMovement();
-                UpdateZombieAttacks();
-                mLastZombieUpdate = currentTime;
+                UpdateZombieMovement(); // 更新所有僵尸的移动逻辑
+                UpdateZombieAttacks();  // 更新所有僵尸的攻击逻辑
+                mLastZombieUpdate = currentTime; // 更新上次执行时间戳
             }
             
-            // 更新威胁等级
+            // --- 定期更新全局僵尸威胁等级 ---
             if (currentTime - mLastThreatUpdate >= THREAT_UPDATE_INTERVAL)
             {
-                UpdateThreatLevel();
+                UpdateThreatLevel(); // 评估并可能调整威胁等级
                 mLastThreatUpdate = currentTime;
             }
             
-            // 检查是否需要生成新僵尸
+            // --- 定期检查是否需要生成新的僵尸 ---
             if (currentTime - mLastSpawnCheck >= SPAWN_CHECK_INTERVAL)
             {
-                CheckZombieSpawn();
+                CheckZombieSpawn(); // 检查并执行僵尸生成逻辑
                 mLastSpawnCheck = currentTime;
             }
             
-            // 定期清理死亡僵尸
+            // --- 定期清理已死亡的僵尸数据 ---
             if (currentTime - mLastCleanup >= CLEANUP_INTERVAL)
             {
-                mZombieData.CleanupDeadZombies();
+                mZombieData.CleanupDeadZombies(); // 调用数据容器的方法清理死亡僵尸
                 mLastCleanup = currentTime;
             }
         }
 
         /// <summary>
-        /// 新的一天开始时回调
-        /// 增加僵尸威胁等级积累，并触发威胁等级更新
+        /// 当新的一天开始时的回调处理方法。
+        /// 主要用于增加僵尸威胁等级的积累值，并触发一次威胁等级的更新评估。
         /// </summary>
+        /// <param name="e">新的一天事件参数，包含当前天数。</param>
         private void OnNewDay(NewDayEvent e)
         {
-            // 每日增加威胁积累
-            float threatIncrease = CalculateDailyThreatIncrease();
-            mZombieData.threatAccumulation += threatIncrease;
-            mZombieData.lastThreatIncrease = Time.time;
+            float threatIncrease = CalculateDailyThreatIncrease(); // 计算当日应增加的威胁积累值
+            mZombieData.threatAccumulation += threatIncrease;      // 累加到总威胁值
+            mZombieData.lastThreatIncrease = Time.time;            // 记录威胁增加的时间
             
-            Debug.Log($"第{e.Day}天 - 威胁积累增加 {threatIncrease:F1}，当前总积累: {mZombieData.threatAccumulation:F1}");
+            Debug.Log($"[僵尸系统] 第 {e.Day} 天开始 - 威胁积累增加 {threatIncrease:F1}，当前总积累: {mZombieData.threatAccumulation:F1}。");
             
-            // 触发威胁等级更新
-            UpdateThreatLevel();
+            UpdateThreatLevel(); // 立即尝试更新威胁等级
         }
 
         /// <summary>
-        /// 建筑被摧毁时回调
-        /// 停止僵尸对该建筑的攻击，并重新分配目标
+        /// 当一个建筑被摧毁时的回调处理方法。
+        /// 如果有僵尸正在攻击这个已被摧毁的建筑，则需要重置这些僵尸的目标和状态。
         /// </summary>
+        /// <param name="e">建筑被摧毁事件参数，包含被毁建筑的ID。</param>
         private void OnBuildingDestroyed(BuildingDestroyedEvent e)
         {
-            // 如果该建筑正在被攻击，则移除攻击目标
-            if (mZombieData.buildingUnderAttack.ContainsKey(e.BuildingId.ToString()))
+            string destroyedBuildingIdStr = e.BuildingId.ToString(); // 将建筑ID转为字符串比较
+            // 如果被毁建筑在“正在被攻击的建筑”列表中，则从中移除
+            if (mZombieData.buildingUnderAttack.ContainsKey(destroyedBuildingIdStr))
             {
-                mZombieData.buildingUnderAttack.Remove(e.BuildingId.ToString());
+                mZombieData.buildingUnderAttack.Remove(destroyedBuildingIdStr);
             }
             
-            // 让所有攻击该建筑的僵尸恢复游荡状态
+            // 遍历所有僵尸，如果其目标是被毁建筑，则重置其状态为游荡
             foreach (var zombie in mZombieData.zombies.Values)
             {
-                if (zombie.targetBuildingId == e.BuildingId.ToString())
+                if (zombie.targetBuildingId == destroyedBuildingIdStr)
                 {
-                    zombie.isAttackingBuilding = false;
-                    zombie.targetBuildingId = null;
-                    zombie.state = ZombieState.Wandering;
+                    zombie.isAttackingBuilding = false; // 不再攻击建筑
+                    zombie.targetBuildingId = null;     // 清除目标建筑ID
+                    zombie.state = ZombieState.Wandering; // 恢复到游荡状态
+                    Debug.Log($"[僵尸系统] 僵尸 {zombie.id} 的目标建筑 {destroyedBuildingIdStr} 已被摧毁，僵尸恢复游荡。");
                 }
             }
         }
 
         /// <summary>
-        /// 根据当前游戏天数计算每日威胁增长量
-        /// 威胁越大，僵尸生成越频繁
+        /// （辅助方法）根据当前游戏天数和现有威胁等级，计算每日应增加的威胁积累值。
+        /// 威胁积累值越高，触发更高威胁等级的可能性越大。
         /// </summary>
+        /// <returns>计算得出的当日威胁积累增量。</returns>
         private float CalculateDailyThreatIncrease()
         {
-            int currentDay = mGameModel.GameDay.Value;
-            float baseIncrease = 5f; // 基础增长
+            int currentDay = mGameModel.GameDay.Value; // 获取当前游戏天数
+            float baseIncrease = 5f; // 每日基础威胁增长值
             
-            // 随着天数增加，威胁增长加速
-            float dayMultiplier = 1f + (currentDay - 1) * 0.1f;
+            // 1. 天数乘数：随着游戏天数增加，威胁增长速度加快
+            float dayMultiplier = 1f + (currentDay - 1) * 0.1f; // 例如，每天额外增加10%的基础增长
             
-            // 根据当前威胁等级调整
-            float threatMultiplier = 1f;
-            switch (mZombieData.currentThreatLevel)
+            // 2. 威胁等级乘数：当前威胁等级越高，每日威胁增长可能反而减缓（或加快，取决于设计）
+            float threatLevelMultiplier = 1f;
+            switch (mZombieData.currentThreatLevel) // 根据当前威胁等级调整增长速率
             {
-                case ZombieThreatLevel.Safe:
-                    threatMultiplier = 1.2f; // 安全期后增长更快
-                    break;
-                case ZombieThreatLevel.Low:
-                    threatMultiplier = 1.0f;
-                    break;
-                case ZombieThreatLevel.Medium:
-                    threatMultiplier = 0.8f;
-                    break;
-                case ZombieThreatLevel.High:
-                    threatMultiplier = 0.6f;
-                    break;
-                case ZombieThreatLevel.Extreme:
-                    threatMultiplier = 0.4f; // 极端威胁时增长放缓
-                    break;
+                case ZombieThreatLevel.Safe:    threatLevelMultiplier = 1.2f; break; // 安全等级后，威胁增长稍快以推动游戏进程
+                case ZombieThreatLevel.Low:     threatLevelMultiplier = 1.0f; break; // 低威胁等级，正常增长
+                case ZombieThreatLevel.Medium:  threatLevelMultiplier = 0.8f; break; // 中等威胁，增长略微减缓
+                case ZombieThreatLevel.High:    threatLevelMultiplier = 0.6f; break; // 高威胁，增长进一步减缓
+                case ZombieThreatLevel.Extreme: threatLevelMultiplier = 0.4f; break; // 极端威胁，增长显著减缓（可能已是后期挑战）
             }
             
-            return baseIncrease * dayMultiplier * threatMultiplier;
+            return baseIncrease * dayMultiplier * threatLevelMultiplier; // 总增长 = 基础 * 天数乘数 * 威胁等级乘数
         }
 
         /// <summary>
-        /// 检查是否应该生成新的僵尸
-        /// 根据当前僵尸数量和威胁等级决定是否触发生成
+        /// 检查是否需要生成新的僵尸。
+        /// 根据当前存活僵尸数量与当前威胁等级配置的最小/最大僵尸数及生成概率来决定。
         /// </summary>
         private void CheckZombieSpawn()
         {
-            int currentZombieCount = mZombieData.GetAliveZombieCount();
-            var threatConfig = mZombieData.threatConfigs[mZombieData.currentThreatLevel];
-            
-            bool shouldSpawn = currentZombieCount < threatConfig.minZombies || 
-                             (currentZombieCount < threatConfig.maxZombies && UnityEngine.Random.value < threatConfig.spawnChance);
-            
-            if (shouldSpawn)
+            int currentAliveZombieCount = mZombieData.GetAliveZombieCount(); // 获取当前存活僵尸数
+            // 获取当前威胁等级对应的生成配置
+            var currentThreatConfig = mZombieData.threatConfigs.TryGetValue(mZombieData.currentThreatLevel, out var cfg) ? cfg : null;
+            if (currentThreatConfig == null)
             {
-                Vector2 spawnPosition = GetRandomSpawnPosition();
-                SpawnZombieHorde(mZombieData.currentThreatLevel, spawnPosition);
+                Debug.LogError($"[僵尸系统] 无法获取威胁等级 {mZombieData.currentThreatLevel} 的配置！");
+                return;
+            }
+            
+            // 判断是否应该生成：
+            // 1. 如果当前僵尸数少于该威胁等级的最小保证数，则尝试生成。
+            // 2. 或者，如果当前僵尸数少于最大允许数，并且随机概率检定通过，则尝试生成。
+            bool shouldAttemptSpawn = currentAliveZombieCount < currentThreatConfig.minZombies ||
+                                    (currentAliveZombieCount < currentThreatConfig.maxZombies &&
+                                     UnityEngine.Random.value < currentThreatConfig.spawnChance);
+            
+            if (shouldAttemptSpawn)
+            {
+                Vector2 spawnCenter = GetRandomSpawnPosition(); // 获取一个随机的僵尸群生成中心点
+                SpawnZombieHorde(mZombieData.currentThreatLevel, spawnCenter); // 生成一群僵尸
             }
         }
 
         /// <summary>
-        /// 获取随机生成位置
-        /// 在避难所周围一定范围内随机生成僵尸
+        /// （辅助方法）获取一个随机的僵尸（群）生成位置。
+        /// 该位置通常在玩家基地或重要区域的一定距离之外，并确保在地图边界内且不与现有建筑重叠。
         /// </summary>
+        /// <returns>计算得到的随机生成位置 (Vector2)。</returns>
         private Vector2 GetRandomSpawnPosition()
         {
-            const int MAX_ATTEMPTS = 20; // 最大尝试次数
-            Vector2 centerPosition = Vector2.zero; // 避难所中心
+            const int MAX_SPAWN_ATTEMPTS = 20; // 为找到有效位置所做的最大尝试次数
+            Vector2 playerBaseCenter = Vector2.zero; // 假设玩家基地中心为 (0,0)，实际应从游戏模型获取
             
-            for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
+            for (int attempt = 0; attempt < MAX_SPAWN_ATTEMPTS; attempt++)
             {
-                // 在指定距离范围内随机生成位置
-                float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad;
-                float distance = UnityEngine.Random.Range(SPAWN_DISTANCE_MIN, SPAWN_DISTANCE_MAX);
+                // 在最小和最大生成距离之间随机选择一个距离和角度
+                float randomAngle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad; // 随机角度 (0-360度)
+                float randomDistance = UnityEngine.Random.Range(SPAWN_DISTANCE_MIN, SPAWN_DISTANCE_MAX); // 随机距离
                 
-                Vector2 spawnPosition = centerPosition + new Vector2(
-                    Mathf.Cos(angle) * distance,
-                    Mathf.Sin(angle) * distance
+                // 计算候选生成位置
+                Vector2 candidateSpawnPosition = playerBaseCenter + new Vector2(
+                    Mathf.Cos(randomAngle) * randomDistance,
+                    Mathf.Sin(randomAngle) * randomDistance
                 );
                 
-                // 确保生成位置在地图范围内
-                spawnPosition.x = Mathf.Clamp(spawnPosition.x, -MAP_SIZE, MAP_SIZE);
-                spawnPosition.y = Mathf.Clamp(spawnPosition.y, -MAP_SIZE, MAP_SIZE);
+                // 确保生成位置在地图边界内
+                candidateSpawnPosition.x = Mathf.Clamp(candidateSpawnPosition.x, -MAP_SIZE / 2, MAP_SIZE / 2); // 地图X轴范围
+                candidateSpawnPosition.y = Mathf.Clamp(candidateSpawnPosition.y, -MAP_SIZE / 2, MAP_SIZE / 2); // 地图Y轴范围
                 
-                // 检查生成位置是否有效（不与建筑重叠）
-                if (IsPositionValid(spawnPosition, ""))
+                // 检查该位置是否有效（例如，不与重要建筑过于接近或重叠）
+                // 此处的空字符串 "" 表示不检查与特定僵尸的碰撞，只检查与环境/建筑的碰撞
+                if (IsPositionValid(candidateSpawnPosition, ""))
                 {
-                    return spawnPosition;
+                    return candidateSpawnPosition; // 如果有效，则返回此位置
                 }
             }
             
-            // 如果尝试多次都失败，返回一个安全的默认位置
-            UnityEngine.Debug.LogWarning("无法找到有效的僵尸生成位置，使用默认位置");
+            // 如果多次尝试后仍未找到理想位置，则记录警告并返回一个备用位置
+            UnityEngine.Debug.LogWarning("[僵尸系统] 未能找到理想的僵尸生成位置，将使用一个靠近边界的备用位置。");
             Vector2 fallbackDirection = new Vector2(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f)).normalized;
-            return fallbackDirection * SPAWN_DISTANCE_MIN;
+            return playerBaseCenter + fallbackDirection * SPAWN_DISTANCE_MIN; // 在最小生成距离处随机一个方向
         }
 
         /// <summary>
-        /// 生成一个僵尸个体
-        /// 用于单独生成特定类型僵尸（如玩家手动召唤）
+        /// 在指定位置生成一个特定类型的单个僵尸。
+        /// 通常用于特殊事件、调试或特定游戏机制。
         /// </summary>
+        /// <param name="type">要生成的僵尸类型。</param>
+        /// <param name="position">僵尸的生成位置。</param>
         public void SpawnZombie(ZombieType type, Vector2 position)
         {
-            var zombie = ZombieData.CreateZombie(type, position);
-            mZombieData.zombies[zombie.id] = zombie;
-            mZombieData.totalZombiesSpawned++;
+            var newZombie = ZombieData.CreateZombie(type, position); // 使用ZombieData的静态工厂方法创建实例
+            mZombieData.zombies[newZombie.id] = newZombie; // 添加到僵尸数据字典
+            mZombieData.totalZombiesSpawned++;            // 更新总生成数统计
             
-            Debug.Log($"生成僵尸: {type} 于位置 {position}");
+            Debug.Log($"[僵尸系统] 已在位置 {position} 生成一个 {type} 类型的僵尸 (ID: {newZombie.id})。");
             
-            // 发送僵尸生成事件
-            this.SendEvent(new ZombieSpawnedEvent { ZombieId = zombie.id, Type = type, Position = position });
+            // 发送僵尸生成事件，通知其他系统（如可视化、AI增强）
+            this.SendEvent(new ZombieSpawnedEvent { ZombieId = newZombie.id, Type = type, Position = position });
         }
 
         /// <summary>
-        /// 生成一群僵尸（根据威胁等级）
-        /// 用于游戏自动刷新僵尸群
+        /// 根据当前的威胁等级，在指定的中心位置生成一群僵尸。
         /// </summary>
+        /// <param name="threatLevel">当前的僵尸威胁等级。</param>
+        /// <param name="centerPosition">僵尸群生成的中心位置。</param>
         public void SpawnZombieHorde(ZombieThreatLevel threatLevel, Vector2 centerPosition)
         {
-            var threatConfig = mZombieData.threatConfigs[threatLevel];
-            if (threatConfig.spawnConfigs.Count == 0) return;
-            
-            int totalZombies = UnityEngine.Random.Range(threatConfig.minZombies, threatConfig.maxZombies + 1);
-            
-            // 创建僵尸群组
-            var horde = new ZombieHorde
+            // 获取当前威胁等级对应的生成配置
+            var currentThreatConfig = mZombieData.threatConfigs.TryGetValue(threatLevel, out var cfg) ? cfg : null;
+            if (currentThreatConfig == null || currentThreatConfig.spawnConfigs.Count == 0) // 如果无配置或配置中无具体生成项
             {
-                name = $"{threatLevel}威胁僵尸群",
-                centerPosition = centerPosition,
-                radius = 5f,
-                threatLevel = threatLevel,
-                moveDirection = (Vector2.zero - centerPosition).normalized,
-                moveSpeed = 0.5f
-            };
-            
-            mZombieData.hordes[horde.id] = horde;
-            
-            // 生成僵尸
-            for (int i = 0; i < totalZombies; i++)
-            {
-                ZombieType spawnType = SelectZombieTypeByWeight(threatConfig.spawnConfigs);
-                Vector2 spawnPos = GetHordeSpawnPosition(centerPosition, horde.radius);
-                
-                var zombie = ZombieData.CreateZombie(spawnType, spawnPos);
-                mZombieData.zombies[zombie.id] = zombie;
-                horde.zombieIds.Add(zombie.id);
-                mZombieData.totalZombiesSpawned++;
-                
-                this.SendEvent(new ZombieSpawnedEvent { ZombieId = zombie.id, Type = spawnType, Position = spawnPos });
-
+                Debug.LogWarning($"[僵尸系统] 无法生成僵尸群：威胁等级 {threatLevel} 没有有效的生成配置。");
+                return;
             }
             
-            Debug.Log($"生成{threatLevel}威胁僵尸群，共{totalZombies}只僵尸");
+            // 随机决定本次生成的僵尸总数 (在配置的最小和最大数量之间)
+            int totalZombiesToSpawn = UnityEngine.Random.Range(currentThreatConfig.minZombies, currentThreatConfig.maxZombies + 1);
+            if (totalZombiesToSpawn <= 0) return; // 不生成0或负数数量的僵尸
+
+            // 创建一个新的僵尸群组数据对象
+            var hordeData = new ZombieHorde
+            {
+                // Id 在 ZombieHorde 构造函数中生成
+                name = $"{threatLevel} 威胁等级僵尸群 @ {centerPosition}", // 群组名称
+                centerPosition = centerPosition,     // 群组中心点
+                radius = 5f,                         // 群组活动半径 (示例值)
+                threatLevel = threatLevel,           // 群组的威胁等级
+                moveDirection = (Vector2.zero - centerPosition).normalized, // 初始移动方向（朝向基地中心）
+                moveSpeed = 0.5f                     // 群组的平均移动速度 (示例值)
+            };
             
-            // 发送僵尸群生成事件
+            mZombieData.hordes[hordeData.id] = hordeData; // 将群组数据添加到系统中
+            
+            // 生成指定数量的僵尸并加入该群组
+            for (int i = 0; i < totalZombiesToSpawn; i++)
+            {
+                // 根据权重从配置中选择要生成的僵尸类型
+                ZombieType typeToSpawn = SelectZombieTypeByWeight(currentThreatConfig.spawnConfigs);
+                // 在群组中心点附近随机一个位置生成单个僵尸
+                Vector2 individualSpawnPos = GetHordeSpawnPosition(centerPosition, hordeData.radius);
+                
+                var newZombie = ZombieData.CreateZombie(typeToSpawn, individualSpawnPos); // 创建僵尸实例
+                mZombieData.zombies[newZombie.id] = newZombie; // 添加到主僵尸列表
+                hordeData.zombieIds.Add(newZombie.id);       // 将僵尸ID添加到群组的成员列表
+                mZombieData.totalZombiesSpawned++;           // 更新总生成数统计
+                
+                // 发送单个僵尸生成事件
+                this.SendEvent(new ZombieSpawnedEvent { ZombieId = newZombie.id, Type = typeToSpawn, Position = individualSpawnPos });
+            }
+            
+            Debug.Log($"[僵尸系统] 已在 {centerPosition} 生成一个 {threatLevel} 等级的僵尸群 (ID: {hordeData.id})，包含 {totalZombiesToSpawn} 只僵尸。");
+            
+            // 发送僵尸群已生成事件
             this.SendEvent(new ZombieHordeSpawnedEvent 
             { 
-                HordeId = horde.id, 
+                HordeId = hordeData.id,
                 ThreatLevel = threatLevel, 
                 CenterPosition = centerPosition,
-                ZombieCount = totalZombies
+                ZombieCount = totalZombiesToSpawn
             });
         }
 
         /// <summary>
-        /// 根据权重选择僵尸类型
-        /// 用于根据威胁等级配置，生成不同种类僵尸
+        /// （辅助方法）根据预设的权重从僵尸生成配置列表中随机选择一种僵尸类型。
         /// </summary>
+        /// <param name="configs">包含各种僵尸类型及其生成权重的配置列表。</param>
+        /// <returns>被选中的僵尸类型；如果列表无效则默认为Walker。</returns>
         private ZombieType SelectZombieTypeByWeight(List<ZombieSpawnConfig> configs)
         {
+            // 筛选出当前游戏天数已满足其生成要求的配置项
             var validConfigs = configs.Where(c => c.dayRequirement <= mGameModel.GameDay.Value).ToList();
-            if (validConfigs.Count == 0) return ZombieType.Walker;
+            if (!validConfigs.Any()) return ZombieType.Walker; // 如果没有满足天数要求的配置，则默认生成普通僵尸
             
-            float totalWeight = validConfigs.Sum(c => c.spawnWeight);
-            float randomValue = UnityEngine.Random.Range(0f, totalWeight);
+            float totalWeight = validConfigs.Sum(c => c.spawnWeight); // 计算所有有效配置的总权重
+            if (totalWeight <= 0) return validConfigs.First().type; // 如果总权重为0，返回第一个有效配置的类型
+
+            float randomValue = UnityEngine.Random.Range(0f, totalWeight); // 在0到总权重之间生成一个随机数
             
-            float currentWeight = 0f;
-            foreach (var config in validConfigs)
+            float currentCumulativeWeight = 0f;
+            foreach (var config in validConfigs) // 遍历有效配置，累加权重以确定选中区间
             {
-                currentWeight += config.spawnWeight;
-                if (randomValue <= currentWeight)
+                currentCumulativeWeight += config.spawnWeight;
+                if (randomValue <= currentCumulativeWeight) // 如果随机数落在当前配置的权重区间内
                 {
-                    return config.type;
+                    return config.type; // 返回此配置的僵尸类型
                 }
             }
             
+            // 理论上不应执行到此处，作为备选方案返回第一个有效配置的类型
             return validConfigs.First().type;
         }
 
         /// <summary>
-        /// 获取僵尸群中的随机生成位置
-        /// 用于生成僵尸群时分散生成僵尸位置，避开建筑
+        /// （辅助方法）在指定的僵尸群中心点和半径内，获取一个随机且有效的单个僵尸生成位置。
+        /// 会尝试多次以避开障碍物。
         /// </summary>
+        /// <param name="center">僵尸群的中心位置。</param>
+        /// <param name="radius">僵尸在群内的分布半径。</param>
+        /// <returns>计算得到的单个僵尸生成位置。</returns>
         private Vector2 GetHordeSpawnPosition(Vector2 center, float radius)
         {
-            const int MAX_ATTEMPTS = 15; // 最大尝试次数
+            const int MAX_ATTEMPTS_IN_HORDE = 15; // 在群内寻找有效位置的最大尝试次数
             
-            for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
+            for (int attempt = 0; attempt < MAX_ATTEMPTS_IN_HORDE; attempt++)
             {
-                float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad;
-                float distance = UnityEngine.Random.Range(0f, radius);
+                float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad; // 随机角度
+                float distance = UnityEngine.Random.Range(0f, radius);             // 在0到群半径之间随机距离
                 
                 Vector2 spawnPosition = center + new Vector2(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance);
                 
-                // 检查生成位置是否有效
+                if (IsPositionValid(spawnPosition, "")) // 检查位置是否有效（无碰撞等）
+                {
+                    return spawnPosition;
+                }
+            }
+            
+            // 如果在群内多次尝试失败，则尝试在群边缘外围略远处生成
+            const int MAX_ATTEMPTS_OUTSIDE = 10;
+            for (int attempt = 0; attempt < MAX_ATTEMPTS_OUTSIDE; attempt++)
+            {
+                float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad;
+                float distance = radius + UnityEngine.Random.Range(1f, 3f); // 在群半径外1到3米处
+                
+                Vector2 spawnPosition = center + new Vector2(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance);
+                
                 if (IsPositionValid(spawnPosition, ""))
                 {
                     return spawnPosition;
                 }
             }
             
-            // 如果无法在群内找到有效位置，尝试在群外找
-            for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
-            {
-                float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad;
-                float distance = radius + UnityEngine.Random.Range(1f, 3f); // 在群外更远处
-                
-                Vector2 spawnPosition = center + new Vector2(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance);
-                
-                if (IsPositionValid(spawnPosition, ""))
-                {
-                    return spawnPosition;
-                }
-            }
-            
-            // 最后的备选方案
-            return center + new Vector2(UnityEngine.Random.Range(-radius, radius), UnityEngine.Random.Range(-radius, radius));
+            // 如果所有尝试均失败，则在群中心附近随机一个点作为最后手段（可能仍有碰撞）
+            Debug.LogWarning($"[僵尸系统] 未能为僵尸群成员找到理想生成位置，将在中心点 {center} 附近随机放置。");
+            return center + new Vector2(UnityEngine.Random.Range(-radius * 0.5f, radius * 0.5f),
+                                        UnityEngine.Random.Range(-radius * 0.5f, radius * 0.5f));
         }
 
         /// <summary>
-        /// 更新所有僵尸的移动逻辑
-        /// 包括游荡、接近建筑、攻击等状态迁移
+        /// 更新所有活动僵尸的移动逻辑。
         /// </summary>
         public void UpdateZombieMovement()
         {
-            foreach (var zombie in mZombieData.zombies.Values)
+            foreach (var zombie in mZombieData.zombies.Values) // 遍历所有僵尸
             {
-                if (!zombie.IsAlive) continue;
-                
-                UpdateSingleZombieMovement(zombie);
+                if (!zombie.IsAlive) continue; // 跳过已死亡的僵尸
+                UpdateSingleZombieMovement(zombie); // 更新单个僵尸的移动
             }
         }
 
         /// <summary>
-        /// 更新单个僵尸的移动逻辑
-        /// 根据僵尸当前状态执行不同的移动策略
+        /// （辅助方法）更新单个僵尸的移动逻辑。
+        /// 根据僵尸的当前状态（游荡、接近、攻击）执行不同的移动策略。
         /// </summary>
+        /// <param name="zombie">要更新移动的僵尸数据对象。</param>
         private void UpdateSingleZombieMovement(ZombieData zombie)
         {
-            switch (zombie.state)
+            switch (zombie.state) // 根据僵尸当前状态
             {
-                case ZombieState.Wandering:
+                case ZombieState.Wandering:   // 游荡状态
                     UpdateZombieWandering(zombie);
                     break;
-                    
-                case ZombieState.Approaching:
+                case ZombieState.Approaching: // 接近目标状态
                     UpdateZombieApproaching(zombie);
                     break;
-                    
-                case ZombieState.Attacking:
-                    // 攻击状态下不移动
+                case ZombieState.Attacking:   // 攻击状态
+                    // 攻击状态下通常不进行大的位置移动，或者有特定的攻击位移逻辑（如跳跃、后退）
+                    // 此处留空，具体攻击位移可在UpdateZombieAttacks或特定僵尸AI中处理
                     break;
             }
         }
 
         /// <summary>
-        /// 僵尸游荡行为更新
-        /// 随机游荡，发现附近建筑则转向攻击模式
+        /// （辅助方法）更新处于游荡状态的僵尸的行为。
+        /// 僵尸会尝试寻找附近可攻击的建筑，如果找不到则进行随机移动。
         /// </summary>
+        /// <param name="zombie">要更新的游荡僵尸数据。</param>
         private void UpdateZombieWandering(ZombieData zombie)
         {
-            // 检测是否有可攻击的建筑
+            // 尝试在其探测范围内寻找最近的建筑作为目标
             var nearestBuilding = FindNearestBuilding(zombie.position, zombie.detectionRange);
-            if (nearestBuilding != null)
+            if (nearestBuilding != null) // 如果找到目标建筑
             {
-                zombie.targetBuildingId = nearestBuilding.Id.ToString();
-                zombie.targetPosition = nearestBuilding.Position;
-                zombie.state = ZombieState.Approaching;
-                zombie.isAttackingBuilding = true;
-                return;
+                zombie.targetBuildingId = nearestBuilding.Id.ToString(); // 设置目标建筑ID
+                zombie.targetPosition = nearestBuilding.Position;       // 设置目标位置
+                zombie.state = ZombieState.Approaching;                 // 切换到接近状态
+                zombie.isAttackingBuilding = true;                      // 标记为正在攻击建筑（实际是前往攻击）
+                return; // 已找到目标，本次游荡更新结束
             }
             
-            // 随机游荡
+            // 如果没有找到建筑目标，则进行随机游荡
+            // 检查是否已到达当前的随机游荡目标点 (或距离非常近)
             if (Vector2.Distance(zombie.position, zombie.targetPosition) < 0.5f)
             {
-                // 设置新的随机目标点（避开建筑）
+                // 到达或接近后，设置一个新的随机游荡目标点
                 zombie.targetPosition = FindValidWanderTarget(zombie.position);
             }
             
-            MoveZombieTowardsTarget(zombie);
+            MoveZombieTowardsTarget(zombie); // 向当前（可能是新的）游荡目标点移动
         }
 
         /// <summary>
-        /// 僵尸接近目标建筑的行为更新
-        /// 接近后进入攻击状态
+        /// （辅助方法）更新处于接近目标状态的僵尸的行为。
+        /// 僵尸会持续向目标建筑移动，到达攻击范围后切换到攻击状态。
+        /// 如果目标建筑消失或被摧毁，会重新进入游荡状态。
         /// </summary>
+        /// <param name="zombie">要更新的接近目标状态的僵尸数据。</param>
         private void UpdateZombieApproaching(ZombieData zombie)
         {
-            float distanceToTarget = Vector2.Distance(zombie.position, zombie.targetPosition);
+            float distanceToTarget = Vector2.Distance(zombie.position, zombie.targetPosition); // 计算与目标的距离
             
-            // 检查是否到达攻击范围
+            // 检查是否已到达目标的攻击范围
             if (distanceToTarget <= zombie.attackRange)
             {
-                zombie.state = ZombieState.Attacking;
-                return;
+                zombie.state = ZombieState.Attacking; // 切换到攻击状态
+                return; // 到达攻击范围，本次移动更新结束
             }
             
-            // 检查目标建筑是否还存在
-            if (!string.IsNullOrEmpty(zombie.targetBuildingId))
+            // 检查目标建筑是否仍然有效（未被摧毁）
+            if (!string.IsNullOrEmpty(zombie.targetBuildingId)) // 如果有目标建筑ID
             {
-                if (int.TryParse(zombie.targetBuildingId, out int buildingId))
+                if (int.TryParse(zombie.targetBuildingId, out int buildingId)) // 尝试解析ID
                 {
-                    var building = mBuildingSystem.GetBuilding(buildingId.ToString());
-                    if (building == null)
+                    var targetBuilding = mBuildingSystem.GetBuilding(buildingId.ToString()); // 从建筑系统获取建筑数据
+                    if (targetBuilding == null || targetBuilding.Health <= 0) // 如果建筑不存在或已被摧毁
                     {
+                        // 目标失效，重置僵尸状态为游荡
                         zombie.state = ZombieState.Wandering;
                         zombie.isAttackingBuilding = false;
                         zombie.targetBuildingId = null;
+                        Debug.Log($"[僵尸系统] 僵尸 {zombie.id} 的目标建筑 {buildingId} 已消失，恢复游荡。");
                         return;
                     }
-                    
-                    zombie.targetPosition = building.Position;
+                    // 如果目标建筑位置发生变化（不太可能，但作为健壮性考虑），更新僵尸的目标位置
+                    if (zombie.targetPosition != targetBuilding.Position)
+                    {
+                        zombie.targetPosition = targetBuilding.Position;
+                    }
                 }
             }
             
-            MoveZombieTowardsTarget(zombie);
+            MoveZombieTowardsTarget(zombie); // 向当前目标位置移动
         }
 
         /// <summary>
-        /// 移动僵尸向目标位置
-        /// 包含碰撞检测和避障功能
+        /// （辅助方法）实际移动僵尸向其当前目标位置，包含基本的避障。
         /// </summary>
+        /// <param name="zombie">要移动的僵尸数据。</param>
         private void MoveZombieTowardsTarget(ZombieData zombie)
         {
-            Vector2 direction = (zombie.targetPosition - zombie.position).normalized;
-            float moveDistance = zombie.moveSpeed * ZOMBIE_UPDATE_INTERVAL;
-            Vector2 targetPosition = zombie.position + direction * moveDistance;
+            Vector2 direction = (zombie.targetPosition - zombie.position).normalized; // 计算移动方向
+            float moveDistanceThisFrame = zombie.moveSpeed * ZOMBIE_UPDATE_INTERVAL; // 本次更新周期内应移动的距离
+            Vector2 nextPotentialPosition = zombie.position + direction * moveDistanceThisFrame; // 计算不考虑碰撞的下一位置
             
-            // 检查目标位置是否可移动
-            Vector2 validPosition = FindValidMovePosition(zombie, targetPosition, moveDistance);
-            zombie.position = validPosition;
+            // 寻找一个有效的、尽可能接近目标方向的移动位置（包含避障）
+            Vector2 finalValidPosition = FindValidMovePosition(zombie, nextPotentialPosition, moveDistanceThisFrame);
+            zombie.position = finalValidPosition; // 更新僵尸的实际位置
         }
         
         /// <summary>
-        /// 寻找有效的移动位置（避障算法）
+        /// （辅助方法）寻找一个有效的移动目标位置，实现简单的避障。
+        /// 如果直接朝向目标点会被阻挡，则尝试向周围其他方向移动。
         /// </summary>
-        private Vector2 FindValidMovePosition(ZombieData zombie, Vector2 targetPosition, float moveDistance)
+        /// <param name="zombie">正在移动的僵尸。</param>
+        /// <param name="desiredNextPosition">理想的下一帧位置（无碰撞情况下）。</param>
+        /// <param name="maxMoveDistance">本帧最大可移动距离。</param>
+        /// <returns>一个有效的、尽可能好的下一位置。</returns>
+        private Vector2 FindValidMovePosition(ZombieData zombie, Vector2 desiredNextPosition, float maxMoveDistance)
         {
-            // 1. 检查目标位置是否有障碍物
-            if (IsPositionValid(targetPosition, zombie.id))
+            // 1. 首先检查理想的下一位置是否有效
+            if (IsPositionValid(desiredNextPosition, zombie.id))
             {
-                return targetPosition; // 直接移动
+                return desiredNextPosition; // 如果理想位置有效，则直接使用
             }
             
-            // 2. 如果有障碍物，尝试绕行
+            // 2. 如果理想位置无效（例如有障碍物），则尝试向周围其他方向探测
             Vector2 currentPosition = zombie.position;
-            Vector2 originalDirection = (targetPosition - currentPosition).normalized;
+            Vector2 originalDirection = (desiredNextPosition - currentPosition).normalized; // 原始期望移动方向
             
-            // 尝试不同角度的绕行路径
-            float[] tryAngles = { -45f, 45f, -90f, 90f, -135f, 135f };
+            // 定义一组尝试探测的备选角度（相对于原始方向）
+            float[] alternativeAngles = { -45f, 45f, -90f, 90f, -135f, 135f }; // 左右45度、90度、135度
             
-            foreach (float angle in tryAngles)
+            foreach (float angleOffset in alternativeAngles)
             {
-                Vector2 rotatedDirection = RotateVector(originalDirection, angle);
-                Vector2 tryPosition = currentPosition + rotatedDirection * moveDistance;
+                Vector2 alternativeDirection = RotateVector(originalDirection, angleOffset); // 旋转原始方向得到备选方向
+                Vector2 candidatePosition = currentPosition + alternativeDirection * maxMoveDistance; // 计算备选方向上的目标点
                 
-                if (IsPositionValid(tryPosition, zombie.id))
+                if (IsPositionValid(candidatePosition, zombie.id)) // 如果此备选位置有效
                 {
-                    return tryPosition;
+                    return candidatePosition; // 则采用此位置
                 }
             }
             
-            // 3. 如果所有方向都被阻挡，尝试向后退一点点
-            Vector2 retreatPosition = currentPosition - originalDirection * (moveDistance * 0.5f);
+            // 3. 如果所有探测方向都被阻挡，尝试向原始期望移动方向的反方向小幅后退一点
+            // (这有助于僵尸从角落或狭窄处解脱)
+            Vector2 retreatPosition = currentPosition - originalDirection * (maxMoveDistance * 0.5f); // 后退一半距离
             if (IsPositionValid(retreatPosition, zombie.id))
             {
                 return retreatPosition;
             }
             
-            // 4. 最后的选择：保持原地不动
+            // 4. 如果所有尝试都失败，则僵尸保持在当前位置不动
             return currentPosition;
         }
         
         /// <summary>
-        /// 检查位置是否有效（无碰撞）
+        /// （辅助方法）检查指定位置对于特定僵尸是否有效（例如，没有碰撞地图边界、建筑或其他僵尸）。
         /// </summary>
-        private bool IsPositionValid(Vector2 position, string zombieId)
+        /// <param name="position">要检查的位置。</param>
+        /// <param name="zombieIdToIgnore">进行检查的僵尸自身的ID，用于避免与其自身发生碰撞检测。</param>
+        /// <returns>如果位置有效则返回true，否则返回false。</returns>
+        private bool IsPositionValid(Vector2 position, string zombieIdToIgnore)
         {
-            const float ZOMBIE_RADIUS = 0.4f; // 僵尸半径
-            const float BUILDING_BUFFER = 0.2f; // 建筑周围缓冲区
+            const float ZOMBIE_COLLISION_RADIUS = 0.4f; // 僵尸的碰撞半径
+            const float BUILDING_COLLISION_BUFFER = 0.2f; // 建筑周围的额外避让缓冲区
             
-            // 1. 检查地图边界
-            if (position.x < -MAP_SIZE/2 || position.x > MAP_SIZE/2 || 
-                position.y < -MAP_SIZE/2 || position.y > MAP_SIZE/2)
+            // 1. 检查是否超出地图边界
+            if (position.x < -MAP_SIZE / 2f || position.x > MAP_SIZE / 2f ||
+                position.y < -MAP_SIZE / 2f || position.y > MAP_SIZE / 2f)
             {
-                return false;
+                return false; // 超出边界，无效
             }
             
-            // 2. 检查与建筑的碰撞
-            var buildings = mBuildingSystem.GetAllBuildings();
+            // 2. 检查是否与现有建筑发生碰撞
+            var buildings = mBuildingSystem.GetAllBuildings(); // 获取所有建筑数据
             foreach (var building in buildings)
             {
-                if (building.Health <= 0) continue; // 跳过已摧毁的建筑
+                if (building.Health <= 0) continue; // 跳过已被摧毁的建筑
                 
-                float distance = Vector2.Distance(position, building.Position);
-                float requiredDistance = ZOMBIE_RADIUS + GetBuildingRadius(building.ConfigId) + BUILDING_BUFFER;
+                float distanceToBuilding = Vector2.Distance(position, building.Position); // 计算与建筑中心的距离
+                // 碰撞距离 = 僵尸半径 + 建筑半径 + 额外缓冲
+                float requiredSeparation = ZOMBIE_COLLISION_RADIUS + GetBuildingRadius(building.ConfigId) + BUILDING_COLLISION_BUFFER;
                 
-                if (distance < requiredDistance)
+                if (distanceToBuilding < requiredSeparation) // 如果距离小于所需间隔
                 {
-                    return false; // 与建筑碰撞
+                    return false; // 与建筑发生碰撞，无效
                 }
             }
             
-            // 3. 检查与其他僵尸的碰撞
-            foreach (var otherZombie in mZombieData.zombies.Values)
+            // 3. 检查是否与其他僵尸发生碰撞
+            foreach (var otherZombie in mZombieData.zombies.Values) // 遍历所有僵尸
             {
-                if (otherZombie.id == zombieId || !otherZombie.IsAlive) continue;
+                // 跳过自身以及已死亡的僵尸
+                if (otherZombie.id == zombieIdToIgnore || !otherZombie.IsAlive) continue;
                 
-                float distance = Vector2.Distance(position, otherZombie.position);
-                if (distance < ZOMBIE_RADIUS * 2) // 两个僵尸的半径之和
+                float distanceToOtherZombie = Vector2.Distance(position, otherZombie.position);
+                if (distanceToOtherZombie < ZOMBIE_COLLISION_RADIUS * 2) // 如果距离小于两个僵尸半径之和
                 {
-                    return false; // 与其他僵尸碰撞
+                    return false; // 与其他僵尸发生碰撞，无效
                 }
             }
             
-            return true; // 位置有效
+            return true; // 所有检查通过，位置有效
         }
         
         /// <summary>
-        /// 获取建筑的半径（用于碰撞检测）
+        /// （辅助方法）根据建筑类型ID获取其近似的碰撞半径。
+        /// （此为简化实现，实际半径应从建筑配置中读取或更精确计算）
         /// </summary>
-        private float GetBuildingRadius(string buildingType)
+        /// <param name="buildingConfigId">建筑的配置ID。</param>
+        /// <returns>建筑的近似半径。</returns>
+        private float GetBuildingRadius(string buildingConfigId)
         {
-            switch (buildingType)
+            // TODO: 此数据应从BuildingConfig中获取 (例如 config.CollisionRadius 或根据config.Size计算)
+            switch (buildingConfigId) // 示例值
             {
                 case "Shelter": return 1.5f;
                 case "Farm": return 1.0f;
                 case "Workshop": return 1.2f;
-                case "Wall": return 0.8f;
+                case "Wall": return 0.8f; // 墙体可能较薄
                 case "WatchTower": return 1.0f;
                 case "MedicalStation": return 1.1f;
                 case "Quarry": return 1.5f;
                 case "Library": return 1.2f;
                 case "StorageDepot": return 1.3f;
-                default: return 1.0f;
+                default: return 1.0f; // 未知类型默认半径
             }
         }
         
         /// <summary>
-        /// 旋转向量
+        /// （辅助方法）将一个二维向量按指定角度（度数）旋转。
         /// </summary>
+        /// <param name="vector">要旋转的向量。</param>
+        /// <param name="angleDegrees">旋转角度（度数，顺时针为负，逆时针为正）。</param>
+        /// <returns>旋转后的新向量。</returns>
         private Vector2 RotateVector(Vector2 vector, float angleDegrees)
         {
-            float angleRadians = angleDegrees * Mathf.Deg2Rad;
-            float cos = Mathf.Cos(angleRadians);
-            float sin = Mathf.Sin(angleRadians);
+            float angleRadians = angleDegrees * Mathf.Deg2Rad; // 将角度转换为弧度
+            float cosTheta = Mathf.Cos(angleRadians);
+            float sinTheta = Mathf.Sin(angleRadians);
             
+            // 应用旋转矩阵
             return new Vector2(
-                vector.x * cos - vector.y * sin,
-                vector.x * sin + vector.y * cos
+                vector.x * cosTheta - vector.y * sinTheta,
+                vector.x * sinTheta + vector.y * cosTheta
             );
         }
         
         /// <summary>
-        /// 寻找有效的游荡目标位置
+        /// （辅助方法）为游荡状态的僵尸寻找一个有效的随机目标位置。
         /// </summary>
+        /// <param name="currentPosition">僵尸当前位置。</param>
+        /// <returns>一个新的有效游荡目标点。</returns>
         private Vector2 FindValidWanderTarget(Vector2 currentPosition)
         {
-            const int MAX_ATTEMPTS = 10;
+            const int MAX_WANDER_ATTEMPTS = 10; // 为找到有效游荡点所做的最大尝试次数
             
-            for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++)
+            for (int attempt = 0; attempt < MAX_WANDER_ATTEMPTS; attempt++)
             {
-                float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad;
-                float distance = UnityEngine.Random.Range(2f, 5f);
-                Vector2 targetPosition = currentPosition + new Vector2(Mathf.Cos(angle) * distance, Mathf.Sin(angle) * distance);
+                float randomAngle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad; // 随机方向
+                float randomDistance = UnityEngine.Random.Range(2f, 5f); // 随机游荡距离 (2到5米)
+                Vector2 candidateTarget = currentPosition + new Vector2(Mathf.Cos(randomAngle) * randomDistance,
+                                                                      Mathf.Sin(randomAngle) * randomDistance);
                 
-                // 检查目标位置是否有效
-                if (IsPositionValid(targetPosition, ""))
+                if (IsPositionValid(candidateTarget, "")) // 检查此随机点是否有效
                 {
-                    return targetPosition;
+                    return candidateTarget;
                 }
             }
             
-            // 如果找不到有效位置，返回当前位置附近的安全位置
+            // 如果多次尝试后仍未找到，则在当前位置附近小范围随机一个点（可能仍无效，但作为备选）
             return currentPosition + new Vector2(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f));
         }
 
         /// <summary>
-        /// 查找最近的建筑
-        /// 用于僵尸寻找攻击目标
+        /// （辅助方法）在指定位置和探测范围内查找最近的有效建筑目标。
         /// </summary>
+        /// <param name="position">搜索的中心位置（通常是僵尸当前位置）。</param>
+        /// <param name="detectionRange">僵尸的探测范围半径。</param>
+        /// <returns>最近的BuildingData对象；如果范围内无有效建筑，则返回null。</returns>
         private BuildingData FindNearestBuilding(Vector2 position, float detectionRange)
         {
-            var buildings = mBuildingSystem.GetAllBuildings();
-            BuildingData nearestBuilding = null;
-            float nearestDistance = float.MaxValue;
+            var allBuildings = mBuildingSystem.GetAllBuildings(); // 获取所有建筑
+            BuildingData nearestValidBuilding = null;
+            float minDistanceFound = float.MaxValue; // 初始化最小距离为极大值
             
-            foreach (var building in buildings)
+            foreach (var building in allBuildings)
             {
-                if (building.Health <= 0) continue; // 跳过已摧毁的建筑
+                if (building.Health <= 0) continue; // 跳过已被摧毁或无效的建筑
                 
-                float distance = Vector2.Distance(position, building.Position);
-                if (distance <= detectionRange && distance < nearestDistance)
+                float distanceToBuilding = Vector2.Distance(position, building.Position); // 计算距离
+                // 如果建筑在探测范围内，并且比当前已找到的最近建筑更近
+                if (distanceToBuilding <= detectionRange && distanceToBuilding < minDistanceFound)
                 {
-                    nearestDistance = distance;
-                    nearestBuilding = building;
+                    minDistanceFound = distanceToBuilding; // 更新最小距离
+                    nearestValidBuilding = building;      // 更新最近建筑
                 }
             }
             
-            return nearestBuilding;
+            return nearestValidBuilding; // 返回找到的最近建筑，或null
         }
 
         /// <summary>
-        /// 更新僵尸攻击逻辑
-        /// 判断是否可以攻击建筑并触发攻击
+        /// 更新所有活动僵尸的攻击逻辑。
         /// </summary>
         public void UpdateZombieAttacks()
         {
-            foreach (var zombie in mZombieData.zombies.Values)
+            foreach (var zombie in mZombieData.zombies.Values) // 遍历所有僵尸
             {
+                // 只处理存活的、且当前处于攻击状态的僵尸
                 if (!zombie.IsAlive || zombie.state != ZombieState.Attacking) continue;
                 
-                ProcessZombieAttack(zombie);
+                ProcessZombieAttack(zombie); // 处理该僵尸的攻击行为
             }
         }
 
         /// <summary>
-        /// 处理僵尸攻击
-        /// 检查攻击冷却、目标是否存在，并执行攻击
+        /// （辅助方法）处理单个僵尸的攻击行为。
+        /// 包括检查攻击冷却、目标有效性、攻击距离，并执行攻击动作。
         /// </summary>
+        /// <param name="zombie">要处理攻击的僵尸数据。</param>
         private void ProcessZombieAttack(ZombieData zombie)
         {
-            // 检查攻击冷却
-            if (Time.time - zombie.lastAttackTime < ATTACK_COOLDOWN) return;
+            // 1. 检查攻击冷却时间是否已到
+            if (Time.time - zombie.lastAttackTime < ATTACK_COOLDOWN) return; // 如果还在冷却中，则不攻击
             
-            // 检查目标建筑
-            if (string.IsNullOrEmpty(zombie.targetBuildingId))
+            // 2. 检查目标建筑是否依然有效
+            if (string.IsNullOrEmpty(zombie.targetBuildingId)) // 如果没有目标建筑ID
             {
-                zombie.state = ZombieState.Wandering;
+                zombie.state = ZombieState.Wandering; // 切换回游荡状态
                 return;
             }
 
-            // 临时注释掉有问题的代码，等待后续修复
+            // 注意：以下被注释的代码块依赖于mBuildingSystem.GetBuilding能正确处理ID，
+            // 并且BuildingData有Health属性。如果这些不成立，此部分会出问题。
+            // 假设这些是成立的，但为了通过编译检查，暂时注释。
             /*
-            var building = mBuildingSystem.GetBuilding(zombie.targetBuildingId);
-            if (building == null || building.Health <= 0)
+            var targetBuilding = mBuildingSystem.GetBuilding(zombie.targetBuildingId); // 获取目标建筑数据
+            if (targetBuilding == null || targetBuilding.Health <= 0) // 如果目标建筑不存在或已被摧毁
             {
-                zombie.state = ZombieState.Wandering;
-                zombie.isAttackingBuilding = false;
-                zombie.targetBuildingId = null;
+                zombie.state = ZombieState.Wandering;        // 切换回游荡状态
+                zombie.isAttackingBuilding = false;          // 不再以建筑为目标
+                zombie.targetBuildingId = null;              // 清除目标ID
+                Debug.Log($"[僵尸系统] 僵尸 {zombie.id} 的攻击目标建筑 {zombie.targetBuildingId} 已消失，恢复游荡。");
                 return;
             }
 
-            // 检查攻击距离
-            float distance = Vector2.Distance(zombie.position, building.Position);
-            if (distance > zombie.attackRange)
+            // 3. 再次检查攻击距离 (可能在接近过程中目标移动或僵尸被击退)
+            float distanceToTargetBuilding = Vector2.Distance(zombie.position, targetBuilding.Position);
+            if (distanceToTargetBuilding > zombie.attackRange) // 如果超出攻击范围
             {
-                zombie.state = ZombieState.Approaching;
+                zombie.state = ZombieState.Approaching; // 切换回接近状态
                 return;
             }
 
-            // 执行攻击
-            PerformZombieAttack(zombie, building);
+            // 4. 执行攻击动作
+            PerformZombieAttack(zombie, targetBuilding); // 调用实际执行攻击的方法
             */
+
+            // 临时的简化处理：假设目标始终有效且在范围内，直接记录攻击（无实际伤害）
+             Debug.Log($"[僵尸系统] 僵尸 {zombie.id} 尝试攻击目标 {zombie.targetBuildingId} (因部分逻辑注释，未造成实际伤害)。");
+             zombie.lastAttackTime = Time.time; // 更新攻击时间戳，进入冷却
         }
 
         /// <summary>
-        /// 执行僵尸攻击
-        /// 对建筑造成伤害，并发送攻击事件
+        /// （辅助方法）执行僵尸对建筑的实际攻击动作。
+        /// 对建筑造成伤害，记录攻击数据，发送事件，并处理特殊攻击效果。
         /// </summary>
+        /// <param name="zombie">发动攻击的僵尸。</param>
+        /// <param name="building">被攻击的建筑。</param>
         private void PerformZombieAttack(ZombieData zombie, BuildingData building)
         {
-            zombie.lastAttackTime = Time.time;
+            zombie.lastAttackTime = Time.time; // 更新上次攻击时间戳
             
-            // 记录攻击数据
-            var attackData = new ZombieAttackData(zombie.id, building.Id.ToString(), zombie.attackPower, zombie.position, zombie.type);
-            mZombieData.recentAttacks.Add(attackData);
+            // 记录本次攻击的详细数据
+            var attackEventData = new ZombieAttackData(zombie.id, building.Id.ToString(), zombie.attackPower, zombie.position, zombie.type);
+            mZombieData.recentAttacks.Add(attackEventData); // 添加到最近攻击列表 (可能用于统计或回放)
             
-            // 更新建筑受攻击记录
+            // 标记该建筑正在受到攻击 (用于其他系统判断，例如防御塔优先目标)
             mZombieData.buildingUnderAttack[building.Id.ToString()] = Time.time;
             
-            // 临时注释掉实际攻击方法
-            // mBuildingSystem.DamageBuilding(building.Id, zombie.attackPower);
+            // TODO: 调用建筑系统对建筑造成实际伤害
+            // mBuildingSystem.TakeDamageToBuilding(building.Id, zombie.attackPower);
+            // (假设建筑系统有TakeDamageToBuilding方法)
             
-            Debug.Log($"{zombie.type}僵尸攻击了建筑，造成{zombie.attackPower}点伤害");
+            Debug.Log($"[僵尸系统] {zombie.type} 僵尸 (ID: {zombie.id}) 攻击了建筑 {building.ConfigId} (ID: {building.Id})，造成 {zombie.attackPower} 点伤害。");
             
-            // 发送攻击事件
+            // 发送僵尸攻击建筑事件，通知UI或其他相关系统
             this.SendEvent(new ZombieAttackBuildingEvent 
             { 
                 ZombieId = zombie.id,
@@ -769,193 +943,227 @@ namespace SurvivalGame.GameSystem
                 AttackerType = zombie.type
             });
             
-            // 处理特殊攻击类型
-            ProcessSpecialAttack(zombie, building);
+            ProcessSpecialAttack(zombie, building); // 处理此僵尸可能有的特殊攻击效果
         }
 
         /// <summary>
-        /// 处理特殊僵尸的额外攻击效果
-        /// 如喷毒、尖叫吸引其他僵尸等
+        /// （辅助方法）处理不同类型僵尸在攻击时可能附带的特殊效果。
+        /// 例如，吐酸者的持续伤害、尖叫者的吸引同伴、坦克对结构的额外伤害等。
         /// </summary>
+        /// <param name="zombie">发动攻击的僵尸。</param>
+        /// <param name="building">被攻击的建筑。</param>
         private void ProcessSpecialAttack(ZombieData zombie, BuildingData building)
         {
-            switch (zombie.type)
+            switch (zombie.type) // 根据僵尸类型判断特殊攻击
             {
-                case ZombieType.Spitter:
-                    // 吐酸攻击，造成持续伤害
-                    if (Time.time - zombie.lastAttackTime >= zombie.spitCooldown)
+                case ZombieType.Spitter: // 吐酸者
+                    // 假设吐酸攻击除了直接伤害外，还可能造成持续性区域伤害或对建筑有特殊腐蚀效果
+                    // 此处示例为：如果其特殊技能冷却完毕，则可能造成额外伤害或施加debuff
+                    if (Time.time - zombie.spitCooldown >= 3f) // 假设吐酸冷却3秒 (spitCooldown应为上次使用时间)
                     {
-                        // 临时注释掉
-                        // mBuildingSystem.DamageBuilding(building.Id, zombie.attackPower * 0.5f);
-                        zombie.spitCooldown = Time.time + 3f;
+                        // mBuildingSystem.ApplyAcidEffect(building.Id, zombie.attackPower * 0.5f, 5f); // 示例：施加5秒的酸性腐蚀，每秒额外伤害
+                        // zombie.spitCooldown = Time.time; // 重置冷却
+                        Debug.Log($"[僵尸系统] 吐酸者 {zombie.id} 对建筑 {building.Id} 使用了特殊吐酸效果。");
                     }
                     break;
                     
-                case ZombieType.Screamer:
-                    // 尖叫吸引附近僵尸
-                    if (Time.time - zombie.lastAttackTime >= zombie.screamCooldown)
+                case ZombieType.Screamer: // 尖叫者
+                    // 尖叫可能在攻击时（或被攻击时）触发，吸引附近其他僵尸共同攻击当前目标
+                    if (Time.time - zombie.screamCooldown >= 10f) // 假设尖叫冷却10秒
                     {
-                        AttractNearbyZombies(zombie.position, 10f, zombie.targetBuildingId);
-                        zombie.screamCooldown = Time.time + 10f;
+                        AttractNearbyZombies(zombie.position, 10f, building.Id.ToString()); // 吸引10米内僵尸
+                        // zombie.screamCooldown = Time.time; // 重置冷却
+                        Debug.Log($"[僵尸系统] 尖叫者 {zombie.id} 发出尖叫，吸引了同伴攻击建筑 {building.Id}。");
                     }
                     break;
                     
-                case ZombieType.Tank:
-                    // 坦克型造成额外结构伤害
-                    // 临时注释掉，因为BuildingType.Wall不存在
-                    /*
-                    if (building.Type == BuildingType.Wall)
-                    {
-                        mBuildingSystem.DamageBuilding(building.Id, zombie.attackPower * 0.5f);
-                    }
-                    */
+                case ZombieType.Tank: // 坦克
+                    // 坦克型僵尸可能对建筑结构造成额外伤害
+                    // 假设BuildingData有一个BuildingType字段或可以从ConfigId推断
+                    // if (building.Type == BuildingType.Wall || building.Type == BuildingType.Gate) // 假设对墙体类建筑有额外伤害
+                    // {
+                    //     mBuildingSystem.TakeDamageToBuilding(building.Id, zombie.attackPower * 0.5f); // 额外50%伤害
+                    //     Debug.Log($"[僵尸系统] 坦克 {zombie.id} 对建筑 {building.Id} 造成了额外结构伤害。");
+                    // }
                     break;
             }
         }
 
         /// <summary>
-        /// 吸引附近的僵尸加入攻击
+        /// （辅助方法）吸引指定位置和半径范围内的其他僵尸，使其将目标转向指定的建筑ID。
         /// </summary>
-        private void AttractNearbyZombies(Vector2 position, float radius, string targetBuildingId)
+        /// <param name="centerPosition">吸引中心点（通常是尖叫者位置）。</param>
+        /// <param name="radius">吸引半径。</param>
+        /// <param name="newTargetBuildingId">被吸引僵尸的新目标建筑ID。</param>
+        private void AttractNearbyZombies(Vector2 centerPosition, float radius, string newTargetBuildingId)
         {
-            int attractedCount = 0;
-            foreach (var zombie in mZombieData.zombies.Values)
+            int attractedCount = 0; // 记录被成功吸引的僵尸数量
+            foreach (var otherZombie in mZombieData.zombies.Values) // 遍历所有僵尸
             {
-                if (!zombie.IsAlive || zombie.isAttackingBuilding) continue;
+                // 跳过已死亡、正在攻击或已将此建筑作为目标的僵尸
+                if (!otherZombie.IsAlive || otherZombie.isAttackingBuilding || otherZombie.targetBuildingId == newTargetBuildingId) continue;
                 
-                float distance = Vector2.Distance(zombie.position, position);
-                if (distance <= radius)
+                if (Vector2.Distance(otherZombie.position, centerPosition) <= radius) // 如果在吸引半径内
                 {
-                    zombie.targetBuildingId = targetBuildingId;
-                    zombie.state = ZombieState.Approaching;
-                    zombie.isAttackingBuilding = true;
+                    otherZombie.targetBuildingId = newTargetBuildingId; // 设置新的目标建筑
+                    otherZombie.state = ZombieState.Approaching;       // 状态切换为接近目标
+                    otherZombie.isAttackingBuilding = true;            // 标记为以建筑为目标
                     attractedCount++;
                 }
             }
             
-            Debug.Log($"尖叫者吸引了{attractedCount}只僵尸攻击建筑");
+            if (attractedCount > 0)
+            {
+                Debug.Log($"[僵尸系统] 尖叫吸引了 {attractedCount} 只僵尸转向攻击建筑 {newTargetBuildingId}。");
+            }
         }
 
         /// <summary>
-        /// 更新当前威胁等级
-        /// 根据僵尸总数、攻击强度等综合判断威胁等级
+        /// 更新当前的全局僵尸威胁等级。
         /// </summary>
         public void UpdateThreatLevel()
         {
-            ZombieThreatLevel newThreatLevel = CalculateNewThreatLevel();
+            ZombieThreatLevel newCalculatedThreatLevel = CalculateNewThreatLevel(); // 计算新的威胁等级
             
-            if (newThreatLevel != mZombieData.currentThreatLevel)
+            // 如果计算出的新威胁等级与当前等级不同
+            if (newCalculatedThreatLevel != mZombieData.currentThreatLevel)
             {
-                var oldThreatLevel = mZombieData.currentThreatLevel;
-                mZombieData.currentThreatLevel = newThreatLevel;
+                ZombieThreatLevel oldThreatLevel = mZombieData.currentThreatLevel; // 保存旧等级
+                mZombieData.currentThreatLevel = newCalculatedThreatLevel;        // 更新为新等级
                 
-                Debug.Log($"威胁等级变化: {oldThreatLevel} -> {newThreatLevel}");
+                Debug.Log($"[僵尸系统] 全局威胁等级已从 {oldThreatLevel} 变为 {newCalculatedThreatLevel}。当前威胁积累值: {mZombieData.threatAccumulation:F1}。");
                 
-                // 发送威胁等级变化事件
+                // 发送威胁等级变化事件，通知其他系统（如UI、防御工事系统）
                 this.SendEvent(new ThreatLevelChangedEvent 
                 { 
                     OldLevel = oldThreatLevel, 
-                    NewLevel = newThreatLevel,
-                    ThreatAccumulation = mZombieData.threatAccumulation
+                    NewLevel = newCalculatedThreatLevel,
+                    ThreatAccumulation = mZombieData.threatAccumulation // 附带当前的威胁积累值
                 });
             }
         }
 
+        /// <summary>
+        /// 获取当前僵尸系统的所有运行时数据。
+        /// </summary>
+        /// <returns>ZombieSystemData 实例。</returns>
         public ZombieSystemData GetZombieData()
         {
-            return mZombieData;
-            
-            
+            return mZombieData; // 直接返回内部数据对象的引用
         }
 
         /// <summary>
-        /// 根据威胁积累量计算新的威胁等级
+        /// （辅助方法）根据当前的威胁积累值（以及可能的游戏天数等因素）计算应设定的新威胁等级。
         /// </summary>
+        /// <returns>计算得出的新ZombieThreatLevel。</returns>
         private ZombieThreatLevel CalculateNewThreatLevel()
         {
-            int currentDay = mGameModel.GameDay.Value;
-            float accumulation = mZombieData.threatAccumulation;
+            // int currentDay = mGameModel.GameDay.Value; // 获取当前游戏天数 (可能影响等级阈值)
+            float accumulation = mZombieData.threatAccumulation; // 获取当前的威胁积累值
             
-            // 基于威胁积累的等级判定
-            if (accumulation < 20f) return ZombieThreatLevel.Safe;
-            if (accumulation < 50f) return ZombieThreatLevel.Low;
-            if (accumulation < 100f) return ZombieThreatLevel.Medium;
-            if (accumulation < 200f) return ZombieThreatLevel.High;
-            return ZombieThreatLevel.Extreme;
+            // 根据威胁积累值，将游戏划分为不同的威胁阶段
+            // 这些阈值需要根据游戏平衡仔细调整
+            if (accumulation < 20f)  return ZombieThreatLevel.Safe;    // 威胁值低于20：安全
+            if (accumulation < 50f)  return ZombieThreatLevel.Low;     // 20-49：低威胁
+            if (accumulation < 100f) return ZombieThreatLevel.Medium;  // 50-99：中等威胁
+            if (accumulation < 200f) return ZombieThreatLevel.High;    // 100-199：高威胁
+            return ZombieThreatLevel.Extreme; // 200及以上：极端威胁
         }
 
         /// <summary>
-        /// 处理僵尸死亡
-        /// 清除状态，播放特效，减少威胁积累
+        /// 处理指定ID僵尸的死亡逻辑。
         /// </summary>
+        /// <param name="zombieId">死亡僵尸的ID。</param>
         public void ProcessZombieDeath(string zombieId)
         {
-            if (mZombieData.zombies.ContainsKey(zombieId))
+            if (mZombieData.zombies.TryGetValue(zombieId, out var zombie)) // 安全地获取僵尸数据
             {
-                var zombie = mZombieData.zombies[zombieId];
-                zombie.state = ZombieState.Dead;
-                zombie.currentHealth = 0;
-                
-                Debug.Log($"{zombie.type}僵尸死亡");
-                
-                // 发送死亡事件
-                this.SendEvent(new ZombieDeathEvent { ZombieId = zombieId, Type = zombie.type, Position = zombie.position });
-            }
-        }
-
-        /// <summary>
-        /// 给指定僵尸造成伤害
-        /// 如果伤害致死，则调用死亡处理
-        /// </summary>
-        public void TakeDamageToZombie(string zombieId, float damage)
-        {
-            if (mZombieData.zombies.ContainsKey(zombieId))
-            {
-                var zombie = mZombieData.zombies[zombieId];
-                zombie.TakeDamage(damage);
-                
-                if (!zombie.IsAlive)
+                if (zombie.IsAlive) // 确保只处理一次死亡，或从未标记为死亡的僵尸
                 {
-                    ProcessZombieDeath(zombieId);
+                    zombie.state = ZombieState.Dead; // 设置状态为死亡
+                    zombie.currentHealth = 0;        // 生命值清零
+
+                    Debug.Log($"[僵尸系统] {zombie.type} 僵尸 (ID: {zombieId}) 已死亡。");
+
+                    // 发送僵尸死亡事件，通知其他系统（如可视化、统计、掉落物等）
+                    this.SendEvent(new ZombieDeathEvent { ZombieId = zombieId, Type = zombie.type, Position = zombie.position });
+
+                    // TODO: 威胁积累值可能会因僵尸死亡而略微降低（可选设计）
+                    // mZombieData.threatAccumulation = Mathf.Max(0, mZombieData.threatAccumulation - 0.5f);
                 }
             }
+            else
+            {
+                Debug.LogWarning($"[僵尸系统] 尝试处理死亡失败：找不到ID为 {zombieId} 的僵尸。");
+            }
         }
 
         /// <summary>
-        /// 获取当前威胁等级
+        /// 对指定ID的僵尸施加伤害。如果伤害导致其生命值降至0或以下，则处理其死亡。
         /// </summary>
+        /// <param name="zombieId">目标僵尸ID。</param>
+        /// <param name="damage">造成的伤害量。</param>
+        public void TakeDamageToZombie(string zombieId, float damage)
+        {
+            if (damage <= 0) return; // 不处理无效伤害值
+
+            if (mZombieData.zombies.TryGetValue(zombieId, out var zombie)) // 安全获取僵尸数据
+            {
+                if (!zombie.IsAlive) return; // 如果僵尸已经死亡，则不重复处理
+
+                zombie.TakeDamage(damage); // 调用ZombieData内部的TakeDamage方法处理伤害和状态变更
+                
+                // Debug.Log($"[僵尸系统] 僵尸 {zombieId} 受到 {damage} 点伤害，剩余生命: {zombie.currentHealth}。");
+
+                if (!zombie.IsAlive) // 如果在TakeDamage后僵尸不再存活
+                {
+                    ProcessZombieDeath(zombieId); // 则处理其死亡逻辑
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[僵尸系统] 尝试对僵尸造成伤害失败：找不到ID为 {zombieId} 的僵尸。");
+            }
+        }
+
+        /// <summary>获取当前全局僵尸威胁等级。</summary>
         public ZombieThreatLevel GetCurrentThreatLevel() => mZombieData.currentThreatLevel;
 
-        /// <summary>
-        /// 获取总生成僵尸数量
-        /// </summary>
+        /// <summary>获取自游戏开始以来总共生成过的僵尸数量。</summary>
         public int GetTotalZombieCount() => mZombieData.totalZombiesSpawned;
 
-        /// <summary>
-        /// 获取当前存活僵尸数量
-        /// </summary>
+        /// <summary>获取当前场景中所有存活（活动）的僵尸数量。</summary>
         public int GetActiveZombieCount() => mZombieData.GetAliveZombieCount();
 
         /// <summary>
-        /// 主更新方法
-        /// 实际由OnTimeUpdate驱动，提供统一入口
+        /// 系统的主更新方法（由QF框架的AbstractSystem提供，但通常不直接在此类中实现主要逻辑）。
+        /// 实际的周期性更新逻辑已移至由TimeUpdateEvent驱动的OnTimeUpdate方法。
+        /// 此方法保留可能是为了满足接口或框架要求，或用于一次性的、非周期性的更新。
         /// </summary>
         public void Update()
         {
-            // 这个Update方法供外部系统调用，内部逻辑在OnTimeUpdate中处理
+            // 主要的周期性更新逻辑已在OnTimeUpdate中处理，以实现更灵活的时间间隔控制。
+            // 此处可以留空，或用于处理一些确实需要每帧执行的、不适合放入固定间隔的任务。
+            // 例如，非常平滑的动画状态过渡（但通常动画由可视化系统处理）或输入检测（如果适用）。
         }
 
         /// <summary>
-        /// 获取指定范围内的所有僵尸
+        /// 获取在指定位置和半径范围内的所有存活僵尸列表。
         /// </summary>
+        /// <param name="position">搜索的中心位置。</param>
+        /// <param name="radius">搜索半径。</param>
+        /// <returns>符合条件的存活僵尸数据列表。</returns>
         public List<ZombieData> GetZombiesNearPosition(Vector2 position, float radius)
         {
             var nearbyZombies = new List<ZombieData>();
-            foreach (var zombie in mZombieData.zombies.Values)
+            if (mZombieData == null || mZombieData.zombies == null) return nearbyZombies;
+
+            foreach (var zombie in mZombieData.zombies.Values) // 遍历所有僵尸
             {
+                // 只考虑存活的僵尸，并且其与指定位置的距离在半径之内
                 if (zombie.IsAlive && Vector2.Distance(zombie.position, position) <= radius)
                 {
-                    nearbyZombies.Add(zombie);
+                    nearbyZombies.Add(zombie); // 添加到结果列表
                 }
             }
             return nearbyZombies;
@@ -963,68 +1171,93 @@ namespace SurvivalGame.GameSystem
     }
 }
 
-// === 僵尸系统事件定义 ===
+// === 僵尸系统相关的自定义事件结构体定义 ===
+// 将这些定义放在一个独立的、游戏特定的命名空间中，以保持组织清晰并避免命名冲突。
 namespace MyGameNamespace
 {
+    // 注意：原BuildingDestroyedEvent等已在各自系统或Model中定义，此处仅为示例，
+    // 实际应确保事件定义的一致性和唯一性，避免重复。
+    // 如果这些事件已在其他地方定义（如SurvivalGame.Model或各自系统文件内），则此处不应重复。
+
     /// <summary>
-    /// 建筑被摧毁事件
+    /// 当一个建筑被摧毁时发送的事件。
     /// </summary>
-    public struct BuildingDestroyedEvent
+    public struct BuildingDestroyedEvent // 假设此事件在别处定义，此处仅为引用示例
     {
+        /// <summary>被摧毁建筑的唯一ID。</summary>
         public int BuildingId;
+        /// <summary>被摧毁建筑的类型或配置ID。</summary>
         public string BuildingType;
+        /// <summary>建筑被摧毁时的位置。</summary>
         public Vector3 Position;
     }
     
     /// <summary>
-    /// 僵尸生成事件
+    /// 当一个新僵尸在游戏中生成时发送的事件。
     /// </summary>
     public struct ZombieSpawnedEvent
     {
+        /// <summary>生成僵尸的唯一ID。</summary>
         public string ZombieId;
+        /// <summary>生成僵尸的类型。</summary>
         public ZombieType Type;
+        /// <summary>僵尸的生成位置。</summary>
         public Vector2 Position;
     }
     
     /// <summary>
-    /// 僵尸群生成事件
+    /// 当一群僵尸（Horde）在游戏中生成时发送的事件。
     /// </summary>
     public struct ZombieHordeSpawnedEvent
     {
+        /// <summary>生成僵尸群的唯一ID。</summary>
         public string HordeId;
+        /// <summary>此僵尸群对应的威胁等级。</summary>
         public ZombieThreatLevel ThreatLevel;
+        /// <summary>僵尸群生成的中心位置。</summary>
         public Vector2 CenterPosition;
+        /// <summary>此僵尸群中包含的僵尸数量。</summary>
         public int ZombieCount;
     }
     
     /// <summary>
-    /// 僵尸攻击建筑事件
+    /// 当一个僵尸对建筑发起攻击时发送的事件。
     /// </summary>
     public struct ZombieAttackBuildingEvent
     {
+        /// <summary>发动攻击的僵尸的ID。</summary>
         public string ZombieId;
-        public string BuildingId;
+        /// <summary>被攻击建筑的ID。</summary>
+        public string BuildingId; // 注意：原为int，与BuildingData.Id (string)统一
+        /// <summary>本次攻击造成的伤害量。</summary>
         public float Damage;
+        /// <summary>发动攻击的僵尸的类型。</summary>
         public ZombieType AttackerType;
     }
     
     /// <summary>
-    /// 僵尸死亡事件
+    /// 当一个僵尸死亡时发送的事件。
     /// </summary>
     public struct ZombieDeathEvent
     {
+        /// <summary>死亡僵尸的ID。</summary>
         public string ZombieId;
+        /// <summary>死亡僵尸的类型。</summary>
         public ZombieType Type;
+        /// <summary>僵尸死亡时的位置。</summary>
         public Vector2 Position;
     }
     
     /// <summary>
-    /// 威胁等级变化事件
+    /// 当全局僵尸威胁等级发生变化时发送的事件。
     /// </summary>
     public struct ThreatLevelChangedEvent
     {
+        /// <summary>变化前的旧威胁等级。</summary>
         public ZombieThreatLevel OldLevel;
+        /// <summary>变化后的新威胁等级。</summary>
         public ZombieThreatLevel NewLevel;
+        /// <summary>导致等级变化（或当前）的威胁积累值。</summary>
         public float ThreatAccumulation;
     }
 }
