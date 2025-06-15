@@ -1,95 +1,112 @@
+// ==============================================================================
+// **版权所有 (C) 2024 未知开发者保留所有权利。**
+//
+// 文件名：GameUIController.cs
+// 作者：未知开发者
+// 创建日期：2024年07月15日
+// 修改日期：2024年07月15日
+// 文件版本：1.0.0
+// 描述：
+//     此文件定义了游戏主界面的控制器 (GameUIController)。
+//     它负责管理和更新游戏中的各种UI元素，如资源显示、生产效率、
+//     僵尸威胁等级、防御/科技/建筑系统状态、建造菜单以及游戏控制按钮等。
+//     该控制器与多个游戏系统和数据模型交互，并响应游戏事件来刷新UI。
+// ==============================================================================
+
 using UnityEngine;
-using UnityEngine.UI;
-using QFramework;
-using MyGameNamespace;
-using SurvivalGame.Model;
-using SurvivalGame;
-using SurvivalGame.Command;
-using DG.Tweening;
-using System.Linq;
-using SurvivalGame.GameSystem;
+using UnityEngine.UI; // Unity UI命名空间
+using QFramework;      // QFramework框架
+using MyGameNamespace; // 自定义命名空间，包含事件定义
+using SurvivalGame.Model; // 游戏数据模型
+using SurvivalGame;       // 可能包含一些通用定义
+using SurvivalGame.Command; // 游戏指令
+using DG.Tweening;    // DoTween动画库
+using System.Linq;    // LINQ库，用于数据查询
+using SurvivalGame.GameSystem; // 游戏系统接口
 
 namespace SurvivalGame.Controller
 {
     /// <summary>
-    /// 功能：游戏主界面控制器，管理资源显示、建造菜单等UI元素
-    /// 挂载对象：Canvas/GameUI
-    /// 依赖系统：ISurvivalGameModel、IResourceSystem、IEnhancedBuildingSystem
+    /// 游戏主界面UI控制器。
+    /// 管理游戏界面上各种信息的显示和用户交互，例如资源、建造菜单、系统状态等。
+    /// 通常挂载在场景中的主Canvas下的一个UI根对象上（例如 "Canvas/GameUI"）。
+    /// 依赖于 ISurvivalGameModel, IResourceSystem, IEnhancedBuildingSystem 等核心游戏组件。
     /// </summary>
-    public class GameUIController : MonoBehaviour, IController, ICanSendEvent
+    public class GameUIController : MonoBehaviour, IController, ICanSendEvent // 实现QFramework接口
     {
-        [Header("资源显示")]
-        [SerializeField] private Text foodText;
-        [SerializeField] private Text waterText;
-        [SerializeField] private Text materialsText;
-        [SerializeField] private Text ammunitionText;
-        [SerializeField] private Text populationText;
-        [SerializeField] private Text moraleText;
-        [SerializeField] private Text dayText;
-        [SerializeField] private Text energyText;
-        [SerializeField] private Text researchPointsText;
+        [Header("顶部资源条显示")] // Inspector中分组显示
+        [SerializeField] private Text foodText;             // 食物数量文本
+        [SerializeField] private Text waterText;            // 水资源数量文本
+        [SerializeField] private Text materialsText;        // 建筑材料数量文本
+        [SerializeField] private Text ammunitionText;       // 弹药数量文本
+        [SerializeField] private Text populationText;       // 人口数量文本
+        [SerializeField] private Text moraleText;           // 士气值文本
+        [SerializeField] private Text dayText;              // 当前游戏天数文本
+        [SerializeField] private Text energyText;           // 能源数量文本
+        [SerializeField] private Text researchPointsText;   // 科研点数文本
         
         [Header("资源生产效率显示")]
-        [SerializeField] private Text foodProductionText;      // 食物生产效率
-        [SerializeField] private Text ammoProductionText;      // 弹药生产效率
-        [SerializeField] private Text materialsProductionText; // 建材生产效率
-        [SerializeField] private Text totalProductionText;     // 总生产效率概览
-        
-        [Header("僵尸威胁显示")]
-        [SerializeField] private Text threatLevelText;
-        [SerializeField] private Text zombieCountText;
-        [SerializeField] private GameObject threatWarningPanel;
-        
-        [Header("防御系统显示")]
-        [SerializeField] private Text towerCountText;
-        [SerializeField] private Text towerStatsText;
-        
-        [Header("科技系统显示")]
-        [SerializeField] private Text currentResearchText;
-        [SerializeField] private Text researchProgressText;
-        
-        [Header("建筑系统显示")]
-        [SerializeField] private Text buildingCountText;
-        [SerializeField] private Text buildingStatsText;
-        [SerializeField] private Text buildingProductionText;
-        
-        [Header("建造菜单")]
-        [SerializeField] private GameObject buildMenuPanel;
-        [SerializeField] private Button buildMenuToggleBtn;
-        [SerializeField] private Transform buildButtonContainer;
-        
-        [Header("游戏控制")]
-        [SerializeField] private Button pauseBtn;
-        [SerializeField] private Text pauseBtnText;
-        [SerializeField] private Button techBtn;
-        [SerializeField] private Button survivorBtn;
-        
-        // 框架引用
-        private ISurvivalGameModel mSurvivalGameModel;
-        private IResourceSystem mResourceSystem;
-        private IEnhancedBuildingSystem mBuildingSystem;
-        private IZombieSystem mZombieSystem;
-        private IDefenseSystem mDefenseSystem;
-        private IAdvancedTechSystem mTechSystem;
-        private ConfigSystem mConfigSystem;
-        
-        // 建造模式
-        private bool mInBuildMode = false;
-        private string mSelectedBuildingId = "";
-        
-        // UI状态
-        private bool mBuildMenuOpen = false;
-        
-        // 生产效率更新计时
-        private float mLastProductionDisplayUpdate = 0f;
-        private const float PRODUCTION_DISPLAY_UPDATE_INTERVAL = 2f; // 每2秒更新一次生产效率显示
+        [SerializeField] private Text foodProductionText;      // 食物每分钟生产效率文本
+        [SerializeField] private Text ammoProductionText;      // 弹药每分钟生产效率文本
+        [SerializeField] private Text materialsProductionText; // 建材每分钟生产效率文本
+        [SerializeField] private Text totalProductionText;     // 总生产效率概览文本
+
+        [Header("僵尸威胁等级显示")]
+        [SerializeField] private Text threatLevelText;      // 当前僵尸威胁等级文本
+        [SerializeField] private Text zombieCountText;      // 当前活跃僵尸数量文本
+        [SerializeField] private GameObject threatWarningPanel; // 高威胁警告提示面板
+
+        [Header("防御系统状态显示")]
+        [SerializeField] private Text towerCountText;       // 防御塔数量/状态文本
+        [SerializeField] private Text towerStatsText;       // 防御塔综合统计文本（如击杀、伤害）
+
+        [Header("科技系统状态显示")]
+        [SerializeField] private Text currentResearchText;  // 当前正在研究的科技名称文本
+        [SerializeField] private Text researchProgressText; // 当前研究进度及预计时间文本
+
+        [Header("建筑系统状态显示")]
+        [SerializeField] private Text buildingCountText;    // 建筑总数/运营中数量文本
+        [SerializeField] private Text buildingStatsText;    // 各类型建筑数量统计文本
+        [SerializeField] private Text buildingProductionText; // 建筑总产出概览文本
+
+        [Header("建造菜单UI")]
+        [SerializeField] private GameObject buildMenuPanel;     // 建造菜单的主面板GameObject
+        [SerializeField] private Button buildMenuToggleBtn;   // 打开/关闭建造菜单的按钮
+        [SerializeField] private Transform buildButtonContainer; // 容纳动态生成的建造按钮的容器Transform
+
+        [Header("游戏控制按钮")]
+        [SerializeField] private Button pauseBtn;           // 暂停/继续游戏按钮
+        [SerializeField] private Text pauseBtnText;         // 暂停按钮上显示的文本 ("暂停" 或 "继续")
+        [SerializeField] private Button techBtn;            // 打开科技树界面的按钮
+        [SerializeField] private Button survivorBtn;        // 打开幸存者管理界面的按钮
+
+        // QFramework及游戏核心系统引用
+        private ISurvivalGameModel mSurvivalGameModel;  // 游戏数据模型
+        private IResourceSystem mResourceSystem;        // 资源系统
+        private IEnhancedBuildingSystem mBuildingSystem; // 增强型建筑系统
+        private IZombieSystem mZombieSystem;            // 僵尸系统
+        private IDefenseSystem mDefenseSystem;          // 防御系统
+        private IAdvancedTechSystem mTechSystem;        // 高级科技系统
+        private ConfigSystem mConfigSystem;             // 配置数据系统
+
+        // 建造模式相关状态变量
+        private bool mInBuildMode = false;      // 当前是否处于建筑放置模式
+        private string mSelectedBuildingId = "";// 当前选中的待放置建筑的ID
+
+        // UI内部状态
+        private bool mBuildMenuOpen = false;    // 建造菜单是否已打开
+
+        // 生产效率显示更新计时器
+        private float mLastProductionDisplayUpdate = 0f; // 上次更新生产效率显示的时间戳
+        private const float PRODUCTION_DISPLAY_UPDATE_INTERVAL = 2f; // 生产效率显示的更新间隔（秒）
         
         /// <summary>
-        /// 初始化游戏对象时调用，用于获取游戏系统组件和自动关联UI组件
+        /// Unity生命周期方法：当脚本实例被创建时调用。
+        /// 用于获取QFramework框架中的模型和系统实例，并自动关联UI组件。
         /// </summary>
         private void Awake()
         {
-            // 获取框架组件
+            // 获取QFramework框架组件
             mSurvivalGameModel = this.GetModel<ISurvivalGameModel>();
             mResourceSystem = this.GetSystem<IResourceSystem>();
             mBuildingSystem = this.GetSystem<IEnhancedBuildingSystem>();
@@ -98,17 +115,18 @@ namespace SurvivalGame.Controller
             mTechSystem = this.GetSystem<IAdvancedTechSystem>();
             mConfigSystem = this.GetSystem<ConfigSystem>();
             
-            // 自动关联UI组件
+            // 自动查找并关联UI组件引用
             FindUIComponents();
         }
         
         /// <summary>
-        /// 自动查找未手动赋值的UI组件
-        /// 优先使用手动拖拽的组件，只有为null时才自动查找
+        /// 自动查找场景中尚未在Inspector中手动赋值的UI组件。
+        /// 采用 transform.Find 方法，适用于UI元素层级结构相对固定的情况。
+        /// 如果组件已通过Inspector赋值，则不会再次查找。
         /// </summary>
         private void FindUIComponents()
         {
-            // 资源显示 - 只在为null时才自动查找
+            // 资源显示UI元素 - 仅当Inspector中未赋值时才查找
             if (foodText == null) foodText = transform.Find("ResourcePanel/FoodText")?.GetComponent<Text>();
             if (waterText == null) waterText = transform.Find("ResourcePanel/WaterText")?.GetComponent<Text>();
             if (materialsText == null) materialsText = transform.Find("ResourcePanel/MaterialsText")?.GetComponent<Text>();
@@ -119,72 +137,87 @@ namespace SurvivalGame.Controller
             if (energyText == null) energyText = transform.Find("ResourcePanel/EnergyText")?.GetComponent<Text>();
             if (researchPointsText == null) researchPointsText = transform.Find("ResourcePanel/ResearchPointsText")?.GetComponent<Text>();
             
-            // 资源生产效率显示
+            // 资源生产效率显示UI元素
             if (foodProductionText == null) foodProductionText = transform.Find("ResourcePanel/FoodProductionText")?.GetComponent<Text>();
             if (ammoProductionText == null) ammoProductionText = transform.Find("ResourcePanel/AmmoProductionText")?.GetComponent<Text>();
             if (materialsProductionText == null) materialsProductionText = transform.Find("ResourcePanel/MaterialsProductionText")?.GetComponent<Text>();
             if (totalProductionText == null) totalProductionText = transform.Find("ResourcePanel/TotalProductionText")?.GetComponent<Text>();
             
-            // 僵尸威胁显示
+            // 僵尸威胁显示UI元素
             if (threatLevelText == null) threatLevelText = transform.Find("ThreatPanel/ThreatLevelText")?.GetComponent<Text>();
             if (zombieCountText == null) zombieCountText = transform.Find("ThreatPanel/ZombieCountText")?.GetComponent<Text>();
             if (threatWarningPanel == null) threatWarningPanel = transform.Find("ThreatPanel/WarningPanel")?.gameObject;
             
-            // 防御系统显示
+            // 防御系统显示UI元素
             if (towerCountText == null) towerCountText = transform.Find("DefensePanel/TowerCountText")?.GetComponent<Text>();
             if (towerStatsText == null) towerStatsText = transform.Find("DefensePanel/TowerStatsText")?.GetComponent<Text>();
             
-            // 科技系统显示
+            // 科技系统显示UI元素
             if (currentResearchText == null) currentResearchText = transform.Find("TechPanel/CurrentResearchText")?.GetComponent<Text>();
             if (researchProgressText == null) researchProgressText = transform.Find("TechPanel/ResearchProgressText")?.GetComponent<Text>();
             
-            // 建筑系统显示
+            // 建筑系统显示UI元素
             if (buildingCountText == null) buildingCountText = transform.Find("BuildingPanel/BuildingCountText")?.GetComponent<Text>();
             if (buildingStatsText == null) buildingStatsText = transform.Find("BuildingPanel/BuildingStatsText")?.GetComponent<Text>();
             if (buildingProductionText == null) buildingProductionText = transform.Find("BuildingPanel/BuildingProductionText")?.GetComponent<Text>();
             
-            // 建造菜单
+            // 建造菜单UI元素
             if (buildMenuPanel == null) buildMenuPanel = transform.Find("BuildMenuPanel")?.gameObject;
             if (buildMenuToggleBtn == null) buildMenuToggleBtn = transform.Find("ControlPanel/BuildMenuBtn")?.GetComponent<Button>();
             if (buildButtonContainer == null) buildButtonContainer = transform.Find("BuildMenuPanel/ButtonContainer")?.GetComponent<Transform>();
             
-            // 游戏控制
+            // 游戏控制按钮UI元素
             if (pauseBtn == null) pauseBtn = transform.Find("ControlPanel/PauseBtn")?.GetComponent<Button>();
-            if (pauseBtnText == null) pauseBtnText = transform.Find("ControlPanel/PauseBtn/Text")?.GetComponent<Text>();
+            if (pauseBtnText == null) pauseBtnText = transform.Find("ControlPanel/PauseBtn/Text")?.GetComponent<Text>(); // 通常按钮文本是按钮的子对象
             if (techBtn == null) techBtn = transform.Find("ControlPanel/TechBtn")?.GetComponent<Button>();
             if (survivorBtn == null) survivorBtn = transform.Find("ControlPanel/SurvivorBtn")?.GetComponent<Button>();
         }
         
+        /// <summary>
+        /// Unity生命周期方法：在Awake之后、首次Update之前调用一次。
+        /// 用于UI初始化、事件订阅和创建动态UI元素（如建造按钮）。
+        /// </summary>
         private void Start()
         {
-            InitializeUI();
-            SubscribeToEvents();
-            CreateBuildButtons();
-            UpdateResourceDisplay(0);
+            InitializeUI();        // 初始化UI元素状态和按钮监听
+            SubscribeToEvents();   // 订阅游戏模型和自定义事件
+            CreateBuildButtons();  // 根据配置动态创建建造菜单中的按钮
+            UpdateResourceDisplay(0); // 初始更新一次资源显示（参数0无实际意义，仅为匹配委托签名）
 
+            // 示例：使用QFramework的BindableProperty特性，当mSurvivalGameModel.Food变化时自动调用UpdateResourceDisplay
+            // 注意：原代码中此行可能会导致重复更新，因为SubscribeToEvents中已对Food等资源进行了订阅。
+            // 如果OnResourceChanged已正确处理所有资源更新，则此特定行可能多余或应整合。
+            // 为保持与原代码逻辑一致，此处保留，但建议审查事件订阅以避免冗余。
             mSurvivalGameModel.Food.RegisterWithInitValue(UpdateResourceDisplay)
-                .UnRegisterWhenGameObjectDestroyed(this.gameObject);
+                .UnRegisterWhenGameObjectDestroyed(this.gameObject); // 确保在对象销毁时自动取消注册
         }
         
+        /// <summary>
+        /// 初始化UI元素的状态，例如隐藏建造菜单、绑定按钮的点击事件等。
+        /// </summary>
         private void InitializeUI()
         {
-            // 初始化建造菜单状态
+            // 初始化时隐藏建造菜单面板
             if (buildMenuPanel != null)
-            buildMenuPanel.SetActive(false);
+                buildMenuPanel.SetActive(false);
             
-            // 绑定按钮事件
+            // 为各个控制按钮绑定点击事件处理方法
             if (buildMenuToggleBtn != null) buildMenuToggleBtn.onClick.AddListener(ToggleBuildMenu);
             if (pauseBtn != null) pauseBtn.onClick.AddListener(TogglePause);
             if (techBtn != null) techBtn.onClick.AddListener(OpenTechTree);
             if (survivorBtn != null) survivorBtn.onClick.AddListener(OpenSurvivorPanel);
             
-            // 设置初始UI状态
+            // 根据当前游戏暂停状态，更新暂停按钮的初始文本
             UpdatePauseButton();
         }
         
+        /// <summary>
+        /// 订阅游戏数据模型中的可绑定属性变化事件以及自定义的游戏事件。
+        /// 当这些数据或事件发生时，会调用相应的处理方法来更新UI。
+        /// </summary>
         private void SubscribeToEvents()
         {
-            // 监听资源变化
+            // 监听主要资源量的变化，并在变化时调用 OnResourceChanged 方法，同时在初始时也调用一次
             mSurvivalGameModel.Food.RegisterWithInitValue(OnResourceChanged).UnRegisterWhenGameObjectDestroyed(this.gameObject);
             mSurvivalGameModel.Water.RegisterWithInitValue(OnResourceChanged).UnRegisterWhenGameObjectDestroyed(this.gameObject);
             mSurvivalGameModel.Materials.RegisterWithInitValue(OnResourceChanged).UnRegisterWhenGameObjectDestroyed(this.gameObject);

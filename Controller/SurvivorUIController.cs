@@ -1,109 +1,128 @@
+// ==============================================================================
+// **版权所有 (C) 2024 未知开发者保留所有权利。**
+//
+// 文件名：SurvivorUIController.cs
+// 作者：未知开发者
+// 创建日期：2024年07月15日
+// 修改日期：2024年07月15日
+// 文件版本：1.0.0
+// 描述：
+//     此文件定义了幸存者管理界面的UI控制器 (SurvivorUIController)。
+//     该控制器负责显示幸存者列表、统计信息、详细信息、技能升级、工作分配
+//     以及招募新幸存者等功能。它与多个游戏系统交互以获取和更新数据，
+//     并响应用户操作和游戏事件来动态刷新UI。
+// ==============================================================================
+
 using System.Collections.Generic;
-using System.Linq;
+using System.Linq; // 用于LINQ查询，例如在过滤和统计中
 using UnityEngine;
-using UnityEngine.UI;
-using QFramework;
-using SurvivalGame.Model;
-using SurvivalGame.GameSystem;
-using DG.Tweening;
-using MyGameNamespace;
-using Unity.VisualScripting;
-using SurvivalGame.Utils;
+using UnityEngine.UI; // Unity UI组件命名空间
+using QFramework;      // QFramework框架
+using SurvivalGame.Model;   // 游戏数据模型，如SurvivorData, SurvivorJob等
+using SurvivalGame.GameSystem; // 游戏系统接口，如ISurvivorSystem, IObjectPoolSystem等
+using DG.Tweening;    // DoTween动画库，用于UI动画效果
+using MyGameNamespace; // 自定义命名空间，可能包含事件定义
+// using Unity.VisualScripting; // VisualScripting命名空间，当前未使用
+using SurvivalGame.Utils;   // 可能包含一些工具类 (当前未使用)
+
 namespace SurvivalGame.Controller
 {
     /// <summary>
-    /// 幸存者管理界面控制器
-    /// 功能：显示幸存者列表、工作分配、技能升级等管理界面
-    /// 挂载对象：Canvas/SurvivorUI
-    /// 依赖系统：ISurvivorSystem（幸存者逻辑）、ISurvivalGameModel（游戏模型）
+    /// 幸存者管理界面UI控制器。
+    /// 负责管理幸存者相关的UI面板，包括列表显示、筛选排序、详情查看、技能升级、工作分配和招募。
+    /// 通常挂载在场景中代表幸存者管理界面的主Canvas或其子Panel上。
     /// </summary>
-    public class SurvivorUIController : BaseUIController
+    public class SurvivorUIController : BaseUIController // 继承自包含UI查找功能的基类
     {
-        [Header("主界面组件")]
-        [SerializeField] private GameObject survivorManagePanel;      // 主面板（包含所有子元素）
-        [SerializeField] private Button survivorToggleBtn;      // 打开/关闭面板按钮
-        [SerializeField] private Button closeSurvivorBtn;       // 关闭面板按钮
+        [Header("主界面UI组件")] // Inspector中分组显示
+        [SerializeField] private GameObject survivorManagePanel;  // 幸存者管理主面板的GameObject
+        [SerializeField] private Button survivorToggleBtn;      // 用于打开/关闭整个幸存者管理面板的按钮
+        [SerializeField] private Button closeSurvivorBtn;       // 关闭幸存者管理主面板的按钮
 
-        [Header("幸存者列表")]
-        [SerializeField] private Transform survivorListContainer; // 列表容器，用于存放每个幸存者的UI项
-        [SerializeField] private Text totalSurvivorCountText;   // 显示总人数文本
+        [Header("幸存者列表区域")]
+        [SerializeField] private Transform survivorListContainer; // 幸存者UI项 (SurvivorItemUI) 的父容器
+        [SerializeField] private Text totalSurvivorCountText;   // 显示当前幸存者总数的文本
 
-        [Header("过滤和排序")]
-        [SerializeField] private Dropdown professionFilterDropdown; // 职业筛选下拉菜单
-        [SerializeField] private Dropdown stateFilterDropdown;      // 状态筛选下拉菜单
-        [SerializeField] private Dropdown sortByDropdown;         // 排序列下拉菜单
-        [SerializeField] private Toggle sortDescendingToggle;     // 是否降序排列
+        [Header("列表过滤与排序控件")]
+        [SerializeField] private Dropdown professionFilterDropdown; // 按职业筛选的下拉菜单
+        [SerializeField] private Dropdown stateFilterDropdown;      // 按状态筛选的下拉菜单 (注意：当前使用的是SurvivorJob枚举)
+        [SerializeField] private Dropdown sortByDropdown;         // 选择排序依据（如姓名、等级等）的下拉菜单
+        [SerializeField] private Toggle sortDescendingToggle;     // 控制升序/降序排列的 Toggle 开关
 
-        [Header("统计信息面板")]
-        [SerializeField] private Text aliveSurvivorCountText;     // 显示存活人数
-        [SerializeField] private Text workingSurvivorCountText;   // 显示工作中人数
-        [SerializeField] private Text idleSurvivorCountText;      // 显示空闲人数
-        [SerializeField] private Text averageMoraleText;          // 显示平均士气值
-        [SerializeField] private Text averageLevelText;           // 显示平均等级
+        [Header("统计信息显示面板")]
+        [SerializeField] private Text aliveSurvivorCountText;     // 显示存活幸存者数量的文本
+        [SerializeField] private Text workingSurvivorCountText;   // 显示正在工作的幸存者数量的文本
+        [SerializeField] private Text idleSurvivorCountText;      // 显示空闲幸存者数量的文本
+        [SerializeField] private Text averageMoraleText;          // 显示队伍平均士气值的文本
+        [SerializeField] private Text averageLevelText;           // 显示队伍平均等级的文本
 
-        [Header("详情面板")]
-        [SerializeField] private GameObject survivorDetailPanel;  // 幸存者详细信息面板
-        [SerializeField] private Text detailNameText;             // 姓名
-        [SerializeField] private Text detailProfessionText;       // 职业
-        [SerializeField] private Text detailLevelText;           // 等级
-        [SerializeField] private Text detailHealthText;          // 当前健康值
-        [SerializeField] private Text detailMoraleText;          // 士气值
-        [SerializeField] private Text detailStateText;            // 当前状态
-        [SerializeField] private Text detailWorkAssignmentText;  // 工作分配
-        [SerializeField] private Button detailCloseBtn;
-        [SerializeField] private Button assignWorkBtn;            // 分配工作按钮
-        [SerializeField] private Button unassignWorkBtn;          // 解除工作按钮// 关闭详情面板按钮
+        [Header("幸存者详情面板UI")]
+        [SerializeField] private GameObject survivorDetailPanel;  // 显示单个幸存者详细信息的面板
+        [SerializeField] private Text detailNameText;             // 幸存者姓名 (详情)
+        [SerializeField] private Text detailProfessionText;       // 幸存者职业 (详情)
+        [SerializeField] private Text detailLevelText;           // 幸存者等级 (详情)
+        [SerializeField] private Text detailHealthText;          // 幸存者当前健康值 (详情)
+        [SerializeField] private Text detailMoraleText;          // 幸存者士气值 (详情)
+        [SerializeField] private Text detailStateText;            // 幸存者当前状态 (详情)
+        [SerializeField] private Text detailWorkAssignmentText;  // 幸存者当前工作分配 (详情)
+        [SerializeField] private Button detailCloseBtn;           // 关闭详情面板的按钮
+        [SerializeField] private Button assignWorkBtn;            // “分配工作”按钮 (在详情面板中)
+        [SerializeField] private Button unassignWorkBtn;          // “解除工作”按钮 (在详情面板中)
 
-        [Header("工作分配面板")]
-        [SerializeField] private GameObject workAssignmentPanel;  // 工作分配面板
-        [SerializeField] private Transform buildingListContainer; // 建筑列表容器
-        [SerializeField] private Button workAssignCloseBtn;       // 关闭工作分配面板按钮
-        [SerializeField] private Text workAssignTitleText;        // 工作分配标题
-        [SerializeField] private Text noBuildingsText;           // 没有可分配建筑的提示
+        [Header("工作分配面板UI")]
+        [SerializeField] private GameObject workAssignmentPanel;  // 工作分配选择面板
+        [SerializeField] private Transform buildingListContainer; // 可分配建筑列表的父容器
+        [SerializeField] private Button workAssignCloseBtn;       // 关闭工作分配面板的按钮
+        [SerializeField] private Text workAssignTitleText;        // 工作分配面板的标题文本 (例如 "为 [幸存者名] 分配工作")
+        [SerializeField] private Text noBuildingsText;           // 当没有可分配建筑时显示的提示文本
 
-        [Header("技能面板")]
-        [SerializeField] private Transform skillContainer;        // 技能容器
-        [SerializeField] private GameObject skillItemPrefab;      // 技能项预制体
-        [SerializeField] private Text availableSkillPointsText;   // 可用技能点数
-        [SerializeField] private Button healBtn;                 // 治疗按钮
+        [Header("技能提升面板UI")]
+        [SerializeField] private Transform skillContainer;        // 技能项UI的父容器 (在详情面板中)
+        [SerializeField] private GameObject skillItemPrefab;      // 单个技能项的UI预制件
+        [SerializeField] private Text availableSkillPointsText;   // 显示幸存者可用技能点数/经验值的文本
+        [SerializeField] private Button healBtn;                 // (可能存在的)治疗按钮，与技能相关或独立功能
 
+        [Header("招募新幸存者面板UI")]
+        [SerializeField] private GameObject recruitPanel;         // 招募面板的GameObject
+        [SerializeField] private Dropdown recruitProfessionDropdown; // 选择招募职业的下拉菜单
+        [SerializeField] private Button recruitBtn;               // 执行招募操作的按钮
+        [SerializeField] private Text recruitCostText;            // 显示招募费用的文本
+        [SerializeField] private Text maxSurvivorText;           // 显示最大幸存者上限的文本
 
-        [Header("招募面板")]
-        [SerializeField] private GameObject recruitPanel;         // 招募面板
-        [SerializeField] private Dropdown recruitProfessionDropdown; // 招募职业选择
-        [SerializeField] private Button recruitBtn;               // 招募新幸存者按钮
-        [SerializeField] private Text recruitCostText;            // 招募费用文本
-        [SerializeField] private Text maxSurvivorText;           // 最大幸存者数量文本
+        // QFramework及游戏核心系统引用
+        private ISurvivorSystem mSurvivorSystem;          // 幸存者管理系统
+        private ISurvivalGameModel mGameModel;            // 游戏全局数据模型
+        private IObjectPoolSystem mObjectPoolSystem;      // 对象池系统，用于复用UI项等对象
+        private IEnhancedBuildingSystem mBuildingSystem;  // 增强型建筑系统，用于获取建筑信息
+        private ConfigSystem mConfigSystem;               // 配置数据系统，用于获取建筑配置等
 
-        // 框架引用
-        private ISurvivorSystem mSurvivorSystem;                // 幸存者系统接口
-        private ISurvivalGameModel mGameModel;                  // 游戏模型接口
-        private IObjectPoolSystem  mObjectPoolSystem;
-        private IEnhancedBuildingSystem mBuildingSystem;        // 建筑系统接口
-        private ConfigSystem mConfigSystem;                     // 配置系统
+        // UI内部状态变量
+        private bool mIsSurvivorPanelOpen = false;        // 标记幸存者管理主面板是否已打开
+        private string mSelectedSurvivorId = "";           // 当前在详情面板中选中的幸存者ID
+        private List<SurvivorData> mFilteredSurvivors = new List<SurvivorData>(); // 经过当前过滤器和排序条件处理后的幸存者列表
+        private Dictionary<string, GameObject> mSurvivorItemObjects = new Dictionary<string, GameObject>(); // 缓存已创建的幸存者列表项UI对象，键为幸存者ID
 
-        // UI状态
-        private bool mIsSurvivorPanelOpen = false;              // 面板是否打开
-        private string mSelectedSurvivorId = "";                 // 当前选中幸存者ID
-        private List<SurvivorData> mFilteredSurvivors = new List<SurvivorData>(); // 过滤后的幸存者列表
-        private Dictionary<string, GameObject> mSurvivorItemObjects = new Dictionary<string, GameObject>(); // 缓存每个幸存者的UI对象
+        // 过滤器和排序状态变量
+        private SurvivorJob mFilterJob = (SurvivorJob)(-1); // 当前职业过滤器 (-1代表不过滤/所有职业)
+        private SurvivorJob mFilterState = (SurvivorJob)(-1); // 当前状态过滤器 (注意：此处用SurvivorJob枚举可能不完全匹配SurvivorState，需确认逻辑)
+        private SurvivorProfession mFilterProfession = (SurvivorProfession)(-1); // 当前专精职业过滤器 (-1代表不过滤)
 
-        // 过滤器状态
-        private SurvivorJob mFilterJob = (SurvivorJob)(-1); // -1表示所有工作类型
-        private SurvivorJob mFilterState = (SurvivorJob)(-1); // -1表示所有状态
-        private SurvivorProfession mFilterProfession = (SurvivorProfession)(-1); // 添加缺少的变量
-
+        /// <summary>
+        /// Unity生命周期方法：当脚本实例被创建时调用。
+        /// 主要用于获取QFramework框架组件和自动关联UI组件。
+        /// </summary>
         private void Awake()
         {
-            // 获取框架组件
+            // 获取QFramework框架组件实例
             mSurvivorSystem = this.GetSystem<ISurvivorSystem>();
             mGameModel = this.GetModel<ISurvivalGameModel>();
             mObjectPoolSystem = this.GetSystem<IObjectPoolSystem>();
             mBuildingSystem = this.GetSystem<IEnhancedBuildingSystem>();
             mConfigSystem = this.GetSystem<ConfigSystem>();
-            // 自动关联UI组件
-            FindUIComponents();
-            survivorManagePanel.SetActive(true);
+
+            FindUIComponents(); // 自动查找并关联UI组件引用
+
+            // survivorManagePanel.SetActive(true); // 原代码中此行可能用于测试，实际应由Open/CloseSurvivorPanel控制
         }
 
         private void Start()
